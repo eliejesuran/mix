@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Frisbee — Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --bg2: #181c27;
+  --bg3: #1f2435;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.15);
+  --text: #f0f2f8;
+  --text2: #8b90a8;
+  --text3: #555b75;
+  --pink: #e8547a;
+  --pink-dim: rgba(232,84,122,0.12);
+  --blue: #4a9eff;
+  --blue-dim: rgba(74,158,255,0.12);
+  --green: #3ecf7c;
+  --green-dim: rgba(62,207,124,0.12);
+  --amber: #f5a623;
+  --amber-dim: rgba(245,166,35,0.12);
+  --red: #ff5e5e;
+  --red-dim: rgba(255,94,94,0.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.logo span { color: var(--green); }
+
+.setup-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  align-items: center;
+}
+
+.setup-fields input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  padding: 7px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.setup-fields input:focus { border-color: var(--green); }
+.setup-fields input[type=date] { width: 148px; color-scheme: dark; }
+.setup-fields input:not([type=date]) { width: 150px; }
+
+/* ── SCOREBOARD ── */
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.team-panel {
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg2);
+  position: relative;
+}
+.team-panel.left { border-right: 1px solid var(--border); }
+
+.team-name-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.score-big {
+  font-family: 'Space Mono', monospace;
+  font-size: 80px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--text);
+  transition: transform 0.1s;
+}
+
+.score-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-score {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-score.add { background: var(--green-dim); border-color: var(--green); color: var(--green); font-weight: 600; }
+.btn-score.sub { color: var(--text3); }
+.btn-score:hover { filter: brightness(1.2); }
+.btn-score:active { transform: scale(0.96); }
+
+.vs-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  background: var(--bg2);
+  gap: 8px;
+}
+
+.vs-txt {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text3);
+  letter-spacing: 3px;
+}
+
+/* ── LINE INDICATOR ── */
+.line-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.line-label {
+  font-size: 12px;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+}
+
+.line-badge {
+  padding: 5px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+.line-badge.f { background: var(--pink-dim); border-color: var(--pink); color: var(--pink); }
+.line-badge.m { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+.line-badge.none { background: var(--bg3); border-color: var(--border2); color: var(--text3); }
+
+.line-override {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  align-items: center;
+}
+.line-override span { font-size: 11px; color: var(--text3); }
+.btn-line {
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text2);
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-line:hover { border-color: var(--border2); background: var(--bg2); }
+.btn-line.active-f { background: var(--pink-dim); border-color: var(--pink); color: var(--pink); }
+.btn-line.active-m { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+
+/* ── MAIN LAYOUT ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  min-height: calc(100vh - 220px);
+}
+
+.left-col { border-right: 1px solid var(--border); }
+.right-col { background: var(--bg2); }
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  background: var(--bg2);
+}
+
+.tab {
+  padding: 14px 18px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+  letter-spacing: 0.3px;
+}
+.tab:hover { color: var(--text2); }
+.tab.active { color: var(--green); border-bottom-color: var(--green); font-weight: 500; }
+
+.pane { display: none; padding: 20px 24px; }
+.pane.active { display: block; }
+
+/* ── PASSES ── */
+.pass-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pass-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.pass-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pass-btn:hover::before { opacity: 1; }
+.pass-btn:active { transform: scale(0.97); }
+
+.pass-btn.ff { border-color: var(--pink); }
+.pass-btn.ff::before { background: var(--pink-dim); }
+.pass-btn.mm { border-color: var(--blue); }
+.pass-btn.mm::before { background: var(--blue-dim); }
+.pass-btn.fm { border-color: var(--green); }
+.pass-btn.fm::before { background: var(--green-dim); }
+.pass-btn.mf { border-color: var(--amber); }
+.pass-btn.mf::before { background: var(--amber-dim); }
+
+.pass-arrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+.pass-btn.ff .pass-arrow { color: var(--pink); }
+.pass-btn.mm .pass-arrow { color: var(--blue); }
+.pass-btn.fm .pass-arrow { color: var(--green); }
+.pass-btn.mf .pass-arrow { color: var(--amber); }
+
+.pass-sub {
+  font-size: 11px;
+  color: var(--text3);
+  position: relative;
+  z-index: 1;
+}
+
+.pass-counts {
+  display: flex;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+  align-items: baseline;
+}
+.pass-cnt-pt {
+  font-family: 'Space Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pass-cnt-total {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+/* ── ERRORS ── */
+.err-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.err-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 4px;
+}
+.err-btn:hover { border-color: var(--red); background: var(--red-dim); }
+.err-btn:active { transform: scale(0.97); }
+
+.err-icon { font-size: 11px; color: var(--text3); }
+.err-label { font-size: 11px; color: var(--text2); text-align: center; line-height: 1.3; }
+.err-counts { display: flex; gap: 4px; align-items: baseline; }
+.err-cnt-pt { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; color: var(--red); }
+.err-cnt-total { font-size: 11px; color: var(--text3); }
+
+/* ── STATS RIGHT COL ── */
+.stats-panel { padding: 20px; }
+.stats-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 14px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-lbl { color: var(--text2); }
+.stat-val { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--text); }
+.stat-val.green { color: var(--green); }
+.stat-val.pink { color: var(--pink); }
+.stat-val.blue { color: var(--blue); }
+
+/* ── BAR CHART ── */
+.bar-section { margin-top: 18px; }
+.bar-item { margin-bottom: 8px; }
+.bar-meta { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+.bar-name { color: var(--text2); }
+.bar-num { font-family: 'Space Mono', monospace; color: var(--text3); }
+.bar-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── PIE ── */
+.pie-wrap { margin-top: 18px; display: flex; align-items: center; gap: 16px; }
+canvas { flex-shrink: 0; }
+.pie-legend { display: flex; flex-direction: column; gap: 6px; }
+.pie-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text2); }
+.pie-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── POINT LOG ── */
+.point-log { margin-top: 18px; }
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.log-entry:last-child { border-bottom: none; }
+.log-pt { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text3); width: 44px; flex-shrink: 0; }
+.log-team { font-weight: 600; font-size: 11px; flex-shrink: 0; }
+.log-last { font-size: 11px; color: var(--text2); }
+.log-line { margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 8px; }
+.log-line.f { background: var(--pink-dim); color: var(--pink); }
+.log-line.m { background: var(--blue-dim); color: var(--blue); }
+
+/* ── ACTIONS ── */
+.actions-bar {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text2);
+}
+.btn-action:hover { background: var(--bg3); color: var(--text); }
+.btn-action.export { background: var(--green-dim); border-color: var(--green); color: var(--green); font-weight: 500; }
+.btn-action.export:hover { filter: brightness(1.1); }
+.btn-action.reset { color: var(--red); border-color: var(--red); }
+.btn-action.reset:hover { background: var(--red-dim); }
+
+/* ── POINT FLASH ── */
+@keyframes scoreFlash {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.score-big.flash { animation: scoreFlash 0.3s ease; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 700px) {
+  .main { grid-template-columns: 1fr; }
+  .right-col { border-top: 1px solid var(--border); border-right: none; }
+  .scoreboard { grid-template-columns: 1fr auto 1fr; }
+  .score-big { font-size: 56px; }
+  .team-panel { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">ULT<span>.</span>TRACK</div>
+  <div class="setup-fields">
+    <input id="nameA" value="Équipe A" placeholder="Équipe A" oninput="updateNames()">
+    <input id="nameB" value="Équipe B" placeholder="Équipe B" oninput="updateNames()">
+    <input id="matchDate" type="date">
+  </div>
+</div>
+
+<div class="scoreboard">
+  <div class="team-panel left">
+    <div class="team-name-lbl" id="lblA">ÉQUIPE A</div>
+    <div class="score-big" id="scoreA">0</div>
+    <div class="score-btns">
+      <button class="btn-score add" onclick="addPoint('A')">+1 point</button>
+      <button class="btn-score sub" onclick="removePoint('A')">−1</button>
+    </div>
+  </div>
+  <div class="vs-col">
+    <div class="vs-txt">VS</div>
+  </div>
+  <div class="team-panel">
+    <div class="team-name-lbl" id="lblB">ÉQUIPE B</div>
+    <div class="score-big" id="scoreB">0</div>
+    <div class="score-btns">
+      <button class="btn-score add" onclick="addPoint('B')">+1 point</button>
+      <button class="btn-score sub" onclick="removePoint('B')">−1</button>
+    </div>
+  </div>
+</div>
+
+<div class="line-bar">
+  <span class="line-label">Ligne :</span>
+  <div class="line-badge none" id="lineBadge">Non définie</div>
+  <div class="line-override">
+    <span>Forcer :</span>
+    <button class="btn-line" id="btnF" onclick="forceLine('F')">Filles</button>
+    <button class="btn-line" id="btnM" onclick="forceLine('M')">Garçons</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="left-col">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('passes')">Passes</button>
+      <button class="tab" onclick="showTab('errors')">Erreurs</button>
+    </div>
+
+    <div id="pane-passes" class="pane active">
+      <div class="pass-grid">
+        <button class="pass-btn ff" onclick="addPass('FF')">
+          <div class="pass-arrow">F → F</div>
+          <div class="pass-sub">Fille à fille</div>
+          <div class="pass-counts">
+            <span class="pass-cnt-pt" id="pt-FF">0</span>
+            <span class="pass-cnt-total" id="tot-FF">(0 total)</span>
+          </div>
+        </button>
+        <button class="pass-btn mm" onclick="addPass('MM')">
+          <div class="pass-arrow">G → G</div>
+          <div class="pass-sub">Garçon à garçon</div>
+          <div class="pass-counts">
+            <span class="pass-cnt-pt" id="pt-MM">0</span>
+            <span class="pass-cnt-total" id="tot-MM">(0 total)</span>
+          </div>
+        </button>
+        <button class="pass-btn fm" onclick="addPass('FM')">
+          <div class="pass-arrow">F → G</div>
+          <div class="pass-sub">Fille à garçon</div>
+          <div class="pass-counts">
+            <span class="pass-cnt-pt" id="pt-FM">0</span>
+            <span class="pass-cnt-total" id="tot-FM">(0 total)</span>
+          </div>
+        </button>
+        <button class="pass-btn mf" onclick="addPass('MF')">
+          <div class="pass-arrow">G → F</div>
+          <div class="pass-sub">Garçon à fille</div>
+          <div class="pass-counts">
+            <span class="pass-cnt-pt" id="pt-MF">0</span>
+            <span class="pass-cnt-total" id="tot-MF">(0 total)</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <div id="pane-errors" class="pane">
+      <div class="err-grid">
+        <button class="err-btn" onclick="addError('dropF')">
+          <div class="err-label">Drop fille</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-dropF">0</span><span class="err-cnt-total" id="tot-dropF">(0)</span></div>
+        </button>
+        <button class="err-btn" onclick="addError('dropM')">
+          <div class="err-label">Drop garçon</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-dropM">0</span><span class="err-cnt-total" id="tot-dropM">(0)</span></div>
+        </button>
+        <button class="err-btn" onclick="addError('incF')">
+          <div class="err-label">Incompl. fille</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-incF">0</span><span class="err-cnt-total" id="tot-incF">(0)</span></div>
+        </button>
+        <button class="err-btn" onclick="addError('incM')">
+          <div class="err-label">Incompl. garçon</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-incM">0</span><span class="err-cnt-total" id="tot-incM">(0)</span></div>
+        </button>
+        <button class="err-btn" onclick="addError('stallF')">
+          <div class="err-label">Stall fille</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-stallF">0</span><span class="err-cnt-total" id="tot-stallF">(0)</span></div>
+        </button>
+        <button class="err-btn" onclick="addError('stallM')">
+          <div class="err-label">Stall garçon</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-stallM">0</span><span class="err-cnt-total" id="tot-stallM">(0)</span></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="actions-bar">
+      <button class="btn-action reset" onclick="resetAll()">Réinitialiser</button>
+      <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="stats-panel">
+      <div class="stats-title">Statistiques globales</div>
+
+      <div class="stat-row"><span class="stat-lbl">Total passes</span><span class="stat-val" id="st-total">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Passes mixtes (F↔G)</span><span class="stat-val green" id="st-mixed">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">% mixité</span><span class="stat-val green" id="st-pct">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Erreurs filles</span><span class="stat-val pink" id="st-errF">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Erreurs garçons</span><span class="stat-val blue" id="st-errM">0</span></div>
+
+      <div class="bar-section">
+        <div class="bar-item">
+          <div class="bar-meta"><span class="bar-name">F → F</span><span class="bar-num" id="bv-FF">0</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bf-FF" style="width:0%;background:#e8547a"></div></div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-meta"><span class="bar-name">G → G</span><span class="bar-num" id="bv-MM">0</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bf-MM" style="width:0%;background:#4a9eff"></div></div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-meta"><span class="bar-name">F → G</span><span class="bar-num" id="bv-FM">0</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bf-FM" style="width:0%;background:#3ecf7c"></div></div>
+        </div>
+        <div class="bar-item">
+          <div class="bar-meta"><span class="bar-name">G → F</span><span class="bar-num" id="bv-MF">0</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bf-MF" style="width:0%;background:#f5a623"></div></div>
+        </div>
+      </div>
+
+      <div class="pie-wrap">
+        <canvas id="pieChart" width="100" height="100"></canvas>
+        <div class="pie-legend" id="pieLegend"></div>
+      </div>
+
+      <div class="point-log">
+        <div class="stats-title" style="margin-top:18px">Points marqués</div>
+        <div id="logList"><div style="font-size:12px;color:var(--text3);padding:8px 0">Aucun point encore marqué</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── ABBA sequence: determines line from total points played
+// ABBA: 0→A, 1→B, 2→B, 3→A, 4→A, 5→B, 6→B... repeating ABBA
+// A = femme-majorité (F), B = homme-majorité (M) (or vice versa, toggleable)
+// Standard mixed ultimate: starting team is F-line, ABBA determines majority
+// position in ABBA pattern: [F,M,M,F, F,M,M,F, ...]
+const ABBA_SEQ = ['F','M','M','F']; // 4-cycle
+
+const state = {
+  scoreA: 0,
+  scoreB: 0,
+  lineOverride: null, // null = auto ABBA
+  // per-point counters (reset each point)
+  pt: { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 },
+  // cumulative totals
+  tot: { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 },
+  lastPass: null, // last pass type this point
+  pointLog: [],  // {num, team, score, lastPass, line, passes:{...}, errors:{...}}
+  actionLog: []  // full action-by-action log
+};
+
+function totalPoints() { return state.scoreA + state.scoreB; }
+
+function abbaLine() {
+  const idx = totalPoints() % 4;
+  return ABBA_SEQ[idx];
+}
+
+function currentLine() {
+  return state.lineOverride || abbaLine();
+}
+
+function lineName(l) {
+  if (l === 'F') return 'Majorité filles';
+  if (l === 'M') return 'Majorité garçons';
+  return '—';
+}
+
+function passLabel(k) {
+  return { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' }[k] || k;
+}
+
+function updateNames() {
+  const a = document.getElementById('nameA').value || 'Équipe A';
+  const b = document.getElementById('nameB').value || 'Équipe B';
+  document.getElementById('lblA').textContent = a.toUpperCase();
+  document.getElementById('lblB').textContent = b.toUpperCase();
+}
+
+function flashScore(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 350);
+}
+
+function recordPoint(team) {
+  const line = currentLine();
+  const num = totalPoints();
+  const teamName = team === 'A'
+    ? (document.getElementById('nameA').value || 'Équipe A')
+    : (document.getElementById('nameB').value || 'Équipe B');
+  state.pointLog.push({
+    num,
+    team,
+    teamName,
+    scoreA: state.scoreA,
+    scoreB: state.scoreB,
+    lastPass: state.lastPass,
+    line,
+    passes: { ...state.pt },
+    errors: { ...state.pt }
+  });
+}
+
+function addPoint(team) {
+  recordPoint(team);
+  state['score' + team]++;
+  flashScore('score' + team);
+  // update ABBA line (score changed) — reset override
+  state.lineOverride = null;
+  // reset per-point counters
+  Object.keys(state.pt).forEach(k => state.pt[k] = 0);
+  state.lastPass = null;
+  render();
+}
+
+function removePoint(team) {
+  if (state['score' + team] <= 0) return;
+  state['score' + team]--;
+  if (state.pointLog.length > 0) state.pointLog.pop();
+  render();
+}
+
+function addPass(type) {
+  state.pt[type]++;
+  state.tot[type]++;
+  state.lastPass = type;
+  state.actionLog.push({ time: new Date().toISOString(), type: 'pass', detail: type, line: currentLine() });
+  render();
+}
+
+function addError(type) {
+  state.pt[type]++;
+  state.tot[type]++;
+  state.actionLog.push({ time: new Date().toISOString(), type: 'error', detail: type, line: currentLine() });
+  render();
+}
+
+function forceLine(g) {
+  state.lineOverride = state.lineOverride === g ? null : g;
+  render();
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.className = 'tab' + (['passes','errors'][i] === name ? ' active' : '');
+  });
+  document.querySelectorAll('.pane').forEach(p => {
+    p.className = 'pane' + (p.id === 'pane-' + name ? ' active' : '');
+  });
+}
+
+function render() {
+  // scores
+  document.getElementById('scoreA').textContent = state.scoreA;
+  document.getElementById('scoreB').textContent = state.scoreB;
+
+  // line
+  const line = currentLine();
+  const badge = document.getElementById('lineBadge');
+  badge.textContent = lineName(line);
+  badge.className = 'line-badge ' + (line === 'F' ? 'f' : line === 'M' ? 'm' : 'none');
+
+  // override buttons
+  document.getElementById('btnF').className = 'btn-line' + (state.lineOverride === 'F' ? ' active-f' : '');
+  document.getElementById('btnM').className = 'btn-line' + (state.lineOverride === 'M' ? ' active-m' : '');
+
+  // per-point + total pass counts
+  ['FF','MM','FM','MF'].forEach(k => {
+    document.getElementById('pt-' + k).textContent = state.pt[k];
+    document.getElementById('tot-' + k).textContent = '(' + state.tot[k] + ' total)';
+  });
+  // per-point + total error counts
+  ['dropF','dropM','incF','incM','stallF','stallM'].forEach(k => {
+    document.getElementById('pt-' + k).textContent = state.pt[k];
+    document.getElementById('tot-' + k).textContent = '(' + state.tot[k] + ')';
+  });
+
+  // stats
+  const p = state.tot;
+  const total = p.FF + p.MM + p.FM + p.MF;
+  const mixed = p.FM + p.MF;
+  const e = state.tot;
+  const errF = e.dropF + e.incF + e.stallF;
+  const errM = e.dropM + e.incM + e.stallM;
+
+  document.getElementById('st-total').textContent = total;
+  document.getElementById('st-mixed').textContent = mixed;
+  document.getElementById('st-pct').textContent = total > 0 ? Math.round(mixed / total * 100) + '%' : '—';
+  document.getElementById('st-errF').textContent = errF;
+  document.getElementById('st-errM').textContent = errM;
+
+  // bars
+  ['FF','MM','FM','MF'].forEach(k => {
+    const w = total > 0 ? Math.round(p[k] / total * 100) : 0;
+    document.getElementById('bv-' + k).textContent = p[k];
+    document.getElementById('bf-' + k).style.width = w + '%';
+  });
+
+  // pie
+  renderPie(p, total);
+
+  // point log
+  renderLog();
+}
+
+function renderPie(p, total) {
+  const canvas = document.getElementById('pieChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 100, 100);
+  if (total === 0) {
+    ctx.fillStyle = '#1f2435';
+    ctx.beginPath(); ctx.arc(50, 50, 40, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  const keys = ['FF','MM','FM','MF'];
+  const colors = ['#e8547a','#4a9eff','#3ecf7c','#f5a623'];
+  let start = -Math.PI / 2;
+  keys.forEach((k, i) => {
+    if (!p[k]) return;
+    const slice = p[k] / total * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(50,50); ctx.arc(50,50,40,start,start+slice); ctx.closePath();
+    ctx.fillStyle = colors[i]; ctx.fill();
+    start += slice;
+  });
+  const labels = { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' };
+  const leg = keys.map((k,i) => p[k] > 0
+    ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${p[k]}</span></div>`
+    : '').join('');
+  document.getElementById('pieLegend').innerHTML = leg;
+}
+
+function renderLog() {
+  const list = document.getElementById('logList');
+  if (state.pointLog.length === 0) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">Aucun point encore marqué</div>';
+    return;
+  }
+  list.innerHTML = [...state.pointLog].reverse().map(pt => {
+    const lpLabel = pt.lastPass ? passLabel(pt.lastPass) : '—';
+    const lpColor = { FF:'var(--pink)', MM:'var(--blue)', FM:'var(--green)', MF:'var(--amber)' }[pt.lastPass] || 'var(--text3)';
+    const teamColor = pt.team === 'A' ? 'var(--green)' : 'var(--amber)';
+    return `<div class="log-entry">
+      <span class="log-pt">#${pt.num + 1}</span>
+      <span class="log-team" style="color:${teamColor}">${pt.teamName}</span>
+      <span class="log-last" style="color:${lpColor}">${lpLabel}</span>
+      <span class="log-line ${pt.line.toLowerCase()}">${pt.line}</span>
+    </div>`;
+  }).join('');
+}
+
+function resetAll() {
+  if (!confirm('Réinitialiser toutes les données ?')) return;
+  state.scoreA = 0; state.scoreB = 0;
+  state.lineOverride = null;
+  Object.keys(state.pt).forEach(k => { state.pt[k] = 0; state.tot[k] = 0; });
+  state.lastPass = null;
+  state.pointLog = [];
+  state.actionLog = [];
+  render();
+}
+
+function exportXLSX() {
+  const teamA = document.getElementById('nameA').value || 'Équipe A';
+  const teamB = document.getElementById('nameB').value || 'Équipe B';
+  const date = document.getElementById('matchDate').value || new Date().toISOString().slice(0,10);
+  const p = state.tot, e = state.tot;
+  const total = p.FF + p.MM + p.FM + p.MF;
+  const mixed = p.FM + p.MF;
+  const errF = e.dropF + e.incF + e.stallF;
+  const errM = e.dropM + e.incM + e.stallM;
+
+  const wb = XLSX.utils.book_new();
+
+  // Feuille 1 — Résumé
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    ['Match', `${teamA} vs ${teamB}`],
+    ['Date', date],
+    ['Score ' + teamA, state.scoreA],
+    ['Score ' + teamB, state.scoreB],
+    [],
+    ['— PASSES TOTALES —'],
+    ['Type', 'Nombre', '% du total'],
+    ['Fille → Fille', p.FF, total > 0 ? +(p.FF/total*100).toFixed(1) : 0],
+    ['Garçon → Garçon', p.MM, total > 0 ? +(p.MM/total*100).toFixed(1) : 0],
+    ['Fille → Garçon', p.FM, total > 0 ? +(p.FM/total*100).toFixed(1) : 0],
+    ['Garçon → Fille', p.MF, total > 0 ? +(p.MF/total*100).toFixed(1) : 0],
+    ['TOTAL', total, 100],
+    ['Passes mixtes', mixed, total > 0 ? +(mixed/total*100).toFixed(1) : 0],
+    [],
+    ['— ERREURS TOTALES —'],
+    ['Type', 'Nombre'],
+    ['Drop fille', e.dropF],
+    ['Drop garçon', e.dropM],
+    ['Passe incomplète fille', e.incF],
+    ['Passe incomplète garçon', e.incM],
+    ['Stall fille', e.stallF],
+    ['Stall garçon', e.stallM],
+    ['Total erreurs filles', errF],
+    ['Total erreurs garçons', errM],
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Résumé');
+
+  // Feuille 2 — Points
+  const ptRows = [['#', 'Équipe', 'Score A', 'Score B', 'Dernière passe', 'Ligne',
+    'FF pt', 'GG pt', 'FG pt', 'GF pt',
+    'Drop F pt', 'Drop G pt', 'Inc F pt', 'Inc G pt', 'Stall F pt', 'Stall G pt']];
+  state.pointLog.forEach((pt, i) => {
+    ptRows.push([
+      i+1, pt.teamName, pt.scoreA, pt.scoreB,
+      pt.lastPass ? passLabel(pt.lastPass) : '—',
+      lineName(pt.line),
+      pt.passes.FF, pt.passes.MM, pt.passes.FM, pt.passes.MF,
+      pt.passes.dropF, pt.passes.dropM, pt.passes.incF, pt.passes.incM, pt.passes.stallF, pt.passes.stallM
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ptRows), 'Points');
+
+  // Feuille 3 — Journal actions
+  const logRows = [['#', 'Horodatage', 'Type', 'Détail', 'Ligne']];
+  state.actionLog.forEach((a, i) => {
+    logRows.push([
+      i+1, a.time,
+      a.type === 'pass' ? 'Passe' : 'Erreur',
+      a.type === 'pass' ? passLabel(a.detail) : a.detail,
+      lineName(a.line)
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(logRows), 'Journal');
+
+  XLSX.writeFile(wb, `ultimate_${teamA.replace(/\s+/g,'_')}_vs_${teamB.replace(/\s+/g,'_')}_${date}.xlsx`);
+}
+
+// Init
+document.getElementById('matchDate').value = new Date().toISOString().slice(0,10);
+render();
+</script>
+</body>
+</html>
