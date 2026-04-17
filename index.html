@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ultimate Frisbee — Tracker</title>
+<title>Ultimate Frisbee — Score & Mixity</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -467,7 +467,7 @@ canvas { flex-shrink: 0; }
 <body>
 
 <div class="header">
-  <div class="logo">ULT<span>.</span>TRACK</div>
+  <div class="logo">ULT<span>.</span>MIX<span>.</span>SCORE</div>
   <div class="setup-fields">
     <input id="nameA" value="Équipe A" placeholder="Équipe A" oninput="updateNames()">
     <input id="nameB" value="Équipe B" placeholder="Équipe B" oninput="updateNames()">
@@ -501,9 +501,9 @@ canvas { flex-shrink: 0; }
   <span class="line-label">Ligne :</span>
   <div class="line-badge none" id="lineBadge">Non définie</div>
   <div class="line-override">
-    <span>Forcer :</span>
-    <button class="btn-line" id="btnF" onclick="forceLine('F')">Filles</button>
-    <button class="btn-line" id="btnM" onclick="forceLine('M')">Garçons</button>
+    <span>Gender :</span>
+    <button class="btn-line" id="btnF" onclick="forceLine('F')">F</button>
+    <button class="btn-line" id="btnM" onclick="forceLine('M')">G</button>
   </div>
 </div>
 
@@ -652,12 +652,14 @@ const state = {
 function totalPoints() { return state.scoreA + state.scoreB; }
 
 function abbaLine() {
-  const idx = totalPoints() % 4;
+  const idx = (totalPoints()+ (state.lineOverride === 'F' ? 0 : state.lineOverride === 'M' ? 2 : 0)) % 4;
   return ABBA_SEQ[idx];
 }
 
 function currentLine() {
-  return state.lineOverride || abbaLine();
+  //return state.lineOverride || abbaLine();
+  return abbaLine();
+
 }
 
 function lineName(l) {
@@ -709,7 +711,7 @@ function addPoint(team) {
   state['score' + team]++;
   flashScore('score' + team);
   // update ABBA line (score changed) — reset override
-  state.lineOverride = null;
+  //state.lineOverride = null;
   // reset per-point counters
   Object.keys(state.pt).forEach(k => state.pt[k] = 0);
   state.lastPass = null;
