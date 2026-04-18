@@ -446,6 +446,69 @@ canvas { flex-shrink: 0; }
 .btn-action.reset { color: var(--red); border-color: var(--red); }
 .btn-action.reset:hover { background: var(--red-dim); }
 
+
+/* ── RECEIVER BAR ── */
+.receiver-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.receiver-label {
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: 'Space Mono', monospace;
+  white-space: nowrap;
+}
+.receiver-btns { display: flex; gap: 5px; align-items: center; }
+.btn-receiver {
+  padding: 4px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text3);
+  font-family: 'Space Mono', monospace;
+}
+.btn-receiver:hover { background: var(--bg2); color: var(--text2); }
+.btn-receiver.active-f { background: var(--pink-dim); border-color: var(--pink); color: var(--pink); }
+.btn-receiver.active-m { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+.receiver-hint { font-size: 11px; color: var(--text3); margin-left: 6px; }
+
+/* ── PASS BUTTON DISABLED ── */
+.pass-btn.dim {
+  opacity: 0.2;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── SAVE INDICATOR ── */
+.btn-save {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text3);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-save:hover { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+.save-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); display: inline-block; transition: background 0.4s; }
+.save-dot.ok { background: var(--green); }
+
 /* ── POINT FLASH ── */
 @keyframes scoreFlash {
   0% { transform: scale(1); }
@@ -473,6 +536,10 @@ canvas { flex-shrink: 0; }
     <input id="nameB" value="Équipe B" placeholder="Équipe B" oninput="updateNames()">
     <input id="matchDate" type="date">
   </div>
+  <button class="btn-save" onclick="saveSession()" title="Sauvegarde automatique active">
+    <span class="save-dot ok" id="saveDot"></span>
+    <span id="saveLabel">Sauvegardé</span>
+  </button>
 </div>
 
 <div class="scoreboard">
@@ -505,6 +572,16 @@ canvas { flex-shrink: 0; }
     <button class="btn-line" id="btnF" onclick="forceLine('F')">F</button>
     <button class="btn-line" id="btnM" onclick="forceLine('M')">G</button>
   </div>
+</div>
+
+<div class="receiver-bar">
+  <span class="receiver-label">Reçoit&nbsp;:</span>
+  <div class="receiver-btns">
+    <button class="btn-receiver" id="rcvF" onclick="setReceiver('F')">F</button>
+    <button class="btn-receiver" id="rcvNone" onclick="setReceiver(null)">—</button>
+    <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">G</button>
+  </div>
+  <span class="receiver-hint" id="rcvHint">appuyez sur un bouton de passe pour filtrer automatiquement</span>
 </div>
 
 <div class="main">
@@ -636,6 +713,8 @@ canvas { flex-shrink: 0; }
 // position in ABBA pattern: [F,M,M,F, F,M,M,F, ...]
 const ABBA_SEQ = ['F','M','M','F']; // 4-cycle
 
+let receiver = null; // F, M, or null
+
 const state = {
   scoreA: 0,
   scoreB: 0,
@@ -710,11 +789,11 @@ function addPoint(team) {
   recordPoint(team);
   state['score' + team]++;
   flashScore('score' + team);
-  // update ABBA line (score changed) — reset override
-  //state.lineOverride = null;
   // reset per-point counters
   Object.keys(state.pt).forEach(k => state.pt[k] = 0);
   state.lastPass = null;
+  receiver = null; // reset receiver after point
+  saveSession(); // auto-save on every point
   render();
 }
 
@@ -730,6 +809,12 @@ function addPass(type) {
   state.tot[type]++;
   state.lastPass = type;
   state.actionLog.push({ time: new Date().toISOString(), type: 'pass', detail: type, line: currentLine() });
+  // Catcher becomes next thrower: set receiver = catcher of this pass
+  // FF → F caught it, FM → G caught it, MM → G caught it, MF → F caught it
+  receiver = (type === 'FF' || type === 'MF') ? 'F' : 'M';
+  // Mark unsaved
+  document.getElementById('saveDot').className = 'save-dot';
+  document.getElementById('saveLabel').textContent = 'Sauvegarder';
   render();
 }
 
@@ -738,6 +823,66 @@ function addError(type) {
   state.tot[type]++;
   state.actionLog.push({ time: new Date().toISOString(), type: 'error', detail: type, line: currentLine() });
   render();
+}
+
+function setReceiver(g) {
+  receiver = g;
+  render();
+}
+
+function updatePassButtons() {
+  const map = { FF: '.pass-btn.ff', MM: '.pass-btn.mm', FM: '.pass-btn.fm', MF: '.pass-btn.mf' };
+  // receiver just caught → now they throw
+  // F has ball: F→F and F→G active (FF, FM)
+  // G has ball: G→G and G→F active (MM, MF)
+  const active = !receiver ? ['FF','MM','FM','MF']
+    : receiver === 'F' ? ['FF','FM']
+    : ['MM','MF'];
+  Object.entries(map).forEach(([k, sel]) => {
+    const btn = document.querySelector(sel);
+    if (active.includes(k)) btn.classList.remove('dim');
+    else btn.classList.add('dim');
+  });
+  // update receiver buttons visual
+  document.getElementById('rcvF').className    = 'btn-receiver' + (receiver === 'F' ? ' active-f' : '');
+  document.getElementById('rcvNone').className = 'btn-receiver' + (!receiver ? ' active-m' : '');
+  document.getElementById('rcvM').className    = 'btn-receiver' + (receiver === 'M' ? ' active-m' : '');
+  const hints = {
+    F:    'F lance → F→F et F→G actives',
+    M:    'G lance → G→G et G→F actives',
+    null: 'appuyez sur un bouton de passe pour filtrer automatiquement'
+  };
+  document.getElementById('rcvHint').textContent = hints[receiver] || hints['null'];
+}
+
+function saveSession() {
+  const snap = {
+    state: JSON.parse(JSON.stringify(state)),
+    receiver,
+    nameA: document.getElementById('nameA').value,
+    nameB: document.getElementById('nameB').value,
+    matchDate: document.getElementById('matchDate').value,
+    at: new Date().toISOString()
+  };
+  localStorage.setItem('ult_mix_score', JSON.stringify(snap));
+  const dot = document.getElementById('saveDot');
+  const lbl = document.getElementById('saveLabel');
+  dot.className = 'save-dot ok';
+  lbl.textContent = 'Sauvegardé';
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem('ult_mix_score');
+    if (!raw) return;
+    const snap = JSON.parse(raw);
+    Object.assign(state, snap.state);
+    receiver = snap.receiver || null;
+    document.getElementById('nameA').value = snap.nameA || 'Équipe A';
+    document.getElementById('nameB').value = snap.nameB || 'Équipe B';
+    if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
+    updateNames();
+  } catch(e) { console.warn('loadSession failed', e); }
 }
 
 function forceLine(g) {
@@ -806,6 +951,9 @@ function render() {
 
   // point log
   renderLog();
+
+  // receiver filter
+  updatePassButtons();
 }
 
 function renderPie(p, total) {
@@ -937,6 +1085,7 @@ function exportXLSX() {
 
 // Init
 document.getElementById('matchDate').value = new Date().toISOString().slice(0,10);
+loadSession();
 render();
 </script>
 </body>
