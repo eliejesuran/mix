@@ -445,6 +445,8 @@ canvas { flex-shrink: 0; }
 .btn-action.export:hover { filter: brightness(1.1); }
 .btn-action.reset { color: var(--red); border-color: var(--red); }
 .btn-action.reset:hover { background: var(--red-dim); }
+.btn-action.link { color: var(--blue); border-color: var(--blue); }
+.btn-action.link:hover { background: var(--blue-dim); }
 
 
 /* ── RECEIVER BAR ── */
@@ -558,9 +560,10 @@ body.light .setup-fields input { color-scheme: light; }
 
 /* ── RESPONSIVE / MOBILE ── */
 @media (max-width: 640px) {
+  html, body { overflow-x: hidden; max-width: 100vw; }
   /* Header: stack inputs below logo row */
   .header {
-    padding: 10px 14px;
+    padding: 10px 12px;
     gap: 8px;
     flex-direction: column;
     align-items: stretch;
@@ -575,8 +578,9 @@ body.light .setup-fields input { color-scheme: light; }
     flex-wrap: wrap;
     gap: 6px;
   }
-  .setup-fields input:not([type=date]) { flex: 1; min-width: 100px; width: auto; }
-  .setup-fields input[type=date] { width: 140px; }
+  .setup-fields input:not([type=date]) { flex: 1; min-width: 80px; width: auto; }
+  .setup-fields input[type=date] { width: 130px; }
+  .setup-fields { max-width: 100%; }
 
   /* Scoreboard: tighter */
   .team-panel { padding: 14px 10px; gap: 6px; }
@@ -611,8 +615,8 @@ body.light .setup-fields input { color-scheme: light; }
   .tab { padding: 12px 14px; }
 
   /* Actions bar */
-  .actions-bar { padding: 12px 14px; }
-  .btn-action { flex: 1; text-align: center; }
+  .actions-bar { padding: 10px 12px; gap: 6px; }
+  .btn-action { flex: 1; text-align: center; font-size: 12px; padding: 8px 6px; }
 
   /* Stats panel */
   .stats-panel { padding: 14px; }
@@ -753,6 +757,7 @@ body.light .setup-fields input { color-scheme: light; }
     <div class="actions-bar">
       <button class="btn-action reset" onclick="resetAll()">Réinitialiser</button>
       <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button>
+      <button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>
     </div>
   </div>
 
@@ -1182,6 +1187,54 @@ function exportXLSX() {
   XLSX.writeFile(wb, `ultimate_${teamA.replace(/\s+/g,'_')}_vs_${teamB.replace(/\s+/g,'_')}_${date}.xlsx`);
 }
 
+function copySessionLink() {
+  const snap = {
+    state: JSON.parse(JSON.stringify(state)),
+    receiver,
+    nameA: document.getElementById('nameA').value,
+    nameB: document.getElementById('nameB').value,
+    matchDate: document.getElementById('matchDate').value,
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
+  const url = location.href.split('?')[0] + '?s=' + encoded;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('btnLink');
+    btn.textContent = '✓ Copié !';
+    setTimeout(() => btn.textContent = 'Lien session', 2000);
+  }).catch(() => {
+    prompt('Copie ce lien :', url);
+  });
+}
+
+function loadFromURL() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const s = params.get('s');
+    if (!s) return false;
+    const snap = JSON.parse(decodeURIComponent(escape(atob(s))));
+    Object.assign(state, snap.state);
+    receiver = snap.receiver || null;
+    document.getElementById('nameA').value = snap.nameA || 'Équipe A';
+    document.getElementById('nameB').value = snap.nameB || 'Équipe B';
+    if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
+    updateNames();
+    return true;
+  } catch(e) { console.warn('loadFromURL failed', e); return false; }
+}
+
+// Wake lock: prevent screen from sleeping
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
   localStorage.setItem('ult_theme', isLight ? 'light' : 'dark');
@@ -1194,7 +1247,8 @@ if (localStorage.getItem('ult_theme') === 'light') {
   document.body.classList.add('light');
   document.getElementById('btnTheme').textContent = '🌙';
 }
-loadSession();
+if (!loadFromURL()) loadSession();
+requestWakeLock();
 render();
 </script>
 </body>
