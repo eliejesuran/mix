@@ -915,6 +915,7 @@ function addError(type) {
   state.pt[type]++;
   state.tot[type]++;
   state.actionLog.push({ time: new Date().toISOString(), type: 'error', detail: type, line: currentLine() });
+  receiver = null; // turnover: possession unknown
   render();
 }
 
@@ -1054,8 +1055,9 @@ function renderPie(p, total) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 100, 100);
   if (total === 0) {
-    ctx.fillStyle = '#1f2435';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg3').trim() || '#1f2435';
     ctx.beginPath(); ctx.arc(50, 50, 40, 0, Math.PI * 2); ctx.fill();
+    document.getElementById('pieLegend').innerHTML = '';
     return;
   }
   const keys = ['FF','MM','FM','MF'];
@@ -1070,7 +1072,7 @@ function renderPie(p, total) {
   });
   const labels = { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' };
   const leg = keys.map((k,i) => p[k] > 0
-    ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${p[k]}</span></div>`
+    ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${Math.round(p[k]/total*100)}%</span></div>`
     : '').join('');
   document.getElementById('pieLegend').innerHTML = leg;
 }
@@ -1102,6 +1104,10 @@ function resetAll() {
   state.lastPass = null;
   state.pointLog = [];
   state.actionLog = [];
+  receiver = null;
+  localStorage.removeItem('ult_mix_score');
+  document.getElementById('saveDot').className = 'save-dot ok';
+  document.getElementById('saveLabel').textContent = 'Sauvegardé';
   render();
 }
 
