@@ -309,24 +309,4 @@ Genres : `'F'` = filles, `'M'` = garçons (masculin)
 
 ---
 ## Multi-match
-`<button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>`
-
-`function copySessionLink() {
-  const snap = {
-    state: JSON.parse(JSON.stringify(state)),
-    receiver,
-    nameA: document.getElementById('nameA').value,
-    nameB: document.getElementById('nameB').value,
-    matchDate: document.getElementById('matchDate').value,
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
-  const url = location.href.split('?')[0] + '?s=' + encoded;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.getElementById('btnLink');
-    btn.textContent = '✓ Copié !';
-    setTimeout(() => btn.textContent = 'Lien session', 2000);
-  }).catch(() => {
-    prompt('Copie ce lien :', url);
-  });
-}`
-
+- ajout d'un bouton pour copier la session et pouvoir l'envoyer. voir si ça fonctionne en mobile
