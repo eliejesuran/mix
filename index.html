@@ -445,8 +445,16 @@ canvas { flex-shrink: 0; }
 .btn-action.export:hover { filter: brightness(1.1); }
 .btn-action.reset { color: var(--red); border-color: var(--red); }
 .btn-action.reset:hover { background: var(--red-dim); }
-.btn-action.link { color: var(--blue); border-color: var(--blue); }
-.btn-action.link:hover { background: var(--blue-dim); }
+.btn-action.undo { color: var(--amber); border-color: var(--amber); }
+.btn-action.undo:hover { background: var(--amber-dim); }
+.btn-action.undo:disabled { opacity: 0.3; cursor: not-allowed; border-color: var(--border2); color: var(--text3); background: transparent; }
+
+@keyframes undoPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+.undo-pop { animation: undoPop 0.2s ease; }
 
 
 /* ── RECEIVER BAR ── */
@@ -454,10 +462,9 @@ canvas { flex-shrink: 0; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 8px 24px;
   background: var(--bg3);
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 .receiver-label {
@@ -560,10 +567,9 @@ body.light .setup-fields input { color-scheme: light; }
 
 /* ── RESPONSIVE / MOBILE ── */
 @media (max-width: 640px) {
-  html, body { overflow-x: hidden; max-width: 100vw; }
   /* Header: stack inputs below logo row */
   .header {
-    padding: 10px 12px;
+    padding: 10px 14px;
     gap: 8px;
     flex-direction: column;
     align-items: stretch;
@@ -578,9 +584,8 @@ body.light .setup-fields input { color-scheme: light; }
     flex-wrap: wrap;
     gap: 6px;
   }
-  .setup-fields input:not([type=date]) { flex: 1; min-width: 80px; width: auto; }
-  .setup-fields input[type=date] { width: 130px; }
-  .setup-fields { max-width: 100%; }
+  .setup-fields input:not([type=date]) { flex: 1; min-width: 100px; width: auto; }
+  .setup-fields input[type=date] { width: 140px; }
 
   /* Scoreboard: tighter */
   .team-panel { padding: 14px 10px; gap: 6px; }
@@ -590,7 +595,7 @@ body.light .setup-fields input { color-scheme: light; }
 
   /* Line bar + receiver bar: compact single rows */
   .line-bar { padding: 7px 12px; gap: 8px; }
-  .receiver-bar { padding: 8px 12px; gap: 8px; margin-top: 8px; }
+  .receiver-bar { padding: 7px 12px; gap: 8px; }
   .line-override span { display: none; }
 
   /* Main: single column, passes first */
@@ -615,8 +620,8 @@ body.light .setup-fields input { color-scheme: light; }
   .tab { padding: 12px 14px; }
 
   /* Actions bar */
-  .actions-bar { padding: 10px 12px; gap: 6px; }
-  .btn-action { flex: 1; text-align: center; font-size: 12px; padding: 8px 6px; }
+  .actions-bar { padding: 12px 14px; }
+  .btn-action { flex: 1; text-align: center; }
 
   /* Stats panel */
   .stats-panel { padding: 14px; }
@@ -673,6 +678,16 @@ body.light .setup-fields input { color-scheme: light; }
   </div>
 </div>
 
+<div class="receiver-bar">
+  <span class="receiver-label">Reçoit&nbsp;:</span>
+  <div class="receiver-btns">
+    <button class="btn-receiver" id="rcvF" onclick="setReceiver('F')">F</button>
+    <button class="btn-receiver" id="rcvNone" onclick="setReceiver(null)">—</button>
+    <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">G</button>
+  </div>
+  <!-- <span class="receiver-hint" id="rcvHint">appuyez sur un bouton de passe pour filtrer automatiquement</span> -->
+</div>
+
 <div class="main">
   <div class="left-col">
     <div class="tabs">
@@ -715,14 +730,6 @@ body.light .setup-fields input { color-scheme: light; }
           </div>
         </button>
       </div>
-      <div class="receiver-bar" style="margin-top:10px">
-        <span class="receiver-label">Reçoit&nbsp;:</span>
-        <div class="receiver-btns">
-          <button class="btn-receiver" id="rcvF" onclick="setReceiver('F')">F</button>
-          <button class="btn-receiver" id="rcvNone" onclick="setReceiver(null)">—</button>
-          <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">G</button>
-        </div>
-      </div>
     </div>
 
     <div id="pane-errors" class="pane">
@@ -756,8 +763,8 @@ body.light .setup-fields input { color-scheme: light; }
 
     <div class="actions-bar">
       <button class="btn-action reset" onclick="resetAll()">Réinitialiser</button>
+      <button class="btn-action undo" id="btnUndo" onclick="undo()" disabled title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
       <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button>
-      <button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>
     </div>
   </div>
 
@@ -812,11 +819,22 @@ body.light .setup-fields input { color-scheme: light; }
 const ABBA_SEQ = ['F','M','M','F']; // 4-cycle
 
 let receiver = null; // F, M, or null
+const undoStack = []; // stack of {state snapshot, receiver}
+const UNDO_MAX = 50;  // max undo depth
+
+function pushUndo() {
+  undoStack.push({
+    state: JSON.parse(JSON.stringify(state)),
+    receiver
+  });
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  document.getElementById('btnUndo').disabled = false;
+}
 
 const state = {
   scoreA: 0,
   scoreB: 0,
-  lineOverride: null, // null = auto ABBA
+  lineOverride: 'F', // 'F'|'M' = ABBA offset; 'F' by default
   // per-point counters (reset each point)
   pt: { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 },
   // cumulative totals
@@ -884,6 +902,7 @@ function recordPoint(team) {
 }
 
 function addPoint(team) {
+  pushUndo();
   recordPoint(team);
   state['score' + team]++;
   flashScore('score' + team);
@@ -897,12 +916,14 @@ function addPoint(team) {
 
 function removePoint(team) {
   if (state['score' + team] <= 0) return;
+  pushUndo();
   state['score' + team]--;
   if (state.pointLog.length > 0) state.pointLog.pop();
   render();
 }
 
 function addPass(type) {
+  pushUndo();
   state.pt[type]++;
   state.tot[type]++;
   state.lastPass = type;
@@ -917,10 +938,11 @@ function addPass(type) {
 }
 
 function addError(type) {
+  pushUndo();
   state.pt[type]++;
   state.tot[type]++;
   state.actionLog.push({ time: new Date().toISOString(), type: 'error', detail: type, line: currentLine() });
-  receiver = null; // turnover: possession unknown
+  receiver = null;
   render();
 }
 
@@ -951,7 +973,8 @@ function updatePassButtons() {
     M:    'G lance → G→G et G→F actives',
     null: 'appuyez sur un bouton de passe pour filtrer automatiquement'
   };
-  const hint = document.getElementById('rcvHint'); if (hint) hint.textContent = hints[receiver] || hints['null'];
+  const hint = document.getElementById('rcvHint');
+  if (hint) hint.textContent = hints[receiver] || hints['null'];
 }
 
 function saveSession() {
@@ -983,6 +1006,34 @@ function loadSession() {
     updateNames();
   } catch(e) { console.warn('loadSession failed', e); }
 }
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const snap = undoStack.pop();
+  Object.assign(state, snap.state);
+  // deep-restore nested objects
+  state.pt = { ...snap.state.pt };
+  state.tot = { ...snap.state.tot };
+  state.pointLog = snap.state.pointLog.map(p => ({ ...p, passes: { ...p.passes }, errors: { ...p.errors } }));
+  state.actionLog = [...snap.state.actionLog];
+  receiver = snap.receiver;
+  document.getElementById('btnUndo').disabled = undoStack.length === 0;
+  // visual feedback
+  const btn = document.getElementById('btnUndo');
+  btn.classList.remove('undo-pop');
+  void btn.offsetWidth;
+  btn.classList.add('undo-pop');
+  setTimeout(() => btn.classList.remove('undo-pop'), 200);
+  render();
+}
+
+// Ctrl+Z / Cmd+Z keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  }
+});
 
 function forceLine(g) {
   state.lineOverride = state.lineOverride === g ? null : g;
@@ -1060,7 +1111,7 @@ function renderPie(p, total) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 100, 100);
   if (total === 0) {
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg3').trim() || '#1f2435';
+    ctx.fillStyle = '#1f2435';
     ctx.beginPath(); ctx.arc(50, 50, 40, 0, Math.PI * 2); ctx.fill();
     document.getElementById('pieLegend').innerHTML = '';
     return;
@@ -1077,7 +1128,7 @@ function renderPie(p, total) {
   });
   const labels = { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' };
   const leg = keys.map((k,i) => p[k] > 0
-    ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${Math.round(p[k]/total*100)}%</span></div>`
+    ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${p[k]}</span></div>`
     : '').join('');
   document.getElementById('pieLegend').innerHTML = leg;
 }
@@ -1104,12 +1155,14 @@ function renderLog() {
 function resetAll() {
   if (!confirm('Réinitialiser toutes les données ?')) return;
   state.scoreA = 0; state.scoreB = 0;
-  state.lineOverride = null;
+  state.lineOverride = 'F';
   Object.keys(state.pt).forEach(k => { state.pt[k] = 0; state.tot[k] = 0; });
   state.lastPass = null;
   state.pointLog = [];
   state.actionLog = [];
   receiver = null;
+  undoStack.length = 0;
+  document.getElementById('btnUndo').disabled = true;
   localStorage.removeItem('ult_mix_score');
   document.getElementById('saveDot').className = 'save-dot ok';
   document.getElementById('saveLabel').textContent = 'Sauvegardé';
@@ -1187,54 +1240,6 @@ function exportXLSX() {
   XLSX.writeFile(wb, `ultimate_${teamA.replace(/\s+/g,'_')}_vs_${teamB.replace(/\s+/g,'_')}_${date}.xlsx`);
 }
 
-function copySessionLink() {
-  const snap = {
-    state: JSON.parse(JSON.stringify(state)),
-    receiver,
-    nameA: document.getElementById('nameA').value,
-    nameB: document.getElementById('nameB').value,
-    matchDate: document.getElementById('matchDate').value,
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
-  const url = location.href.split('?')[0] + '?s=' + encoded;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.getElementById('btnLink');
-    btn.textContent = '✓ Copié !';
-    setTimeout(() => btn.textContent = 'Lien session', 2000);
-  }).catch(() => {
-    prompt('Copie ce lien :', url);
-  });
-}
-
-function loadFromURL() {
-  try {
-    const params = new URLSearchParams(location.search);
-    const s = params.get('s');
-    if (!s) return false;
-    const snap = JSON.parse(decodeURIComponent(escape(atob(s))));
-    Object.assign(state, snap.state);
-    receiver = snap.receiver || null;
-    document.getElementById('nameA').value = snap.nameA || 'Équipe A';
-    document.getElementById('nameB').value = snap.nameB || 'Équipe B';
-    if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
-    updateNames();
-    return true;
-  } catch(e) { console.warn('loadFromURL failed', e); return false; }
-}
-
-// Wake lock: prevent screen from sleeping
-let wakeLock = null;
-async function requestWakeLock() {
-  if (!('wakeLock' in navigator)) return;
-  try {
-    wakeLock = await navigator.wakeLock.request('screen');
-    wakeLock.addEventListener('release', () => { wakeLock = null; });
-  } catch(e) {}
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') requestWakeLock();
-});
-
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
   localStorage.setItem('ult_theme', isLight ? 'light' : 'dark');
@@ -1247,8 +1252,7 @@ if (localStorage.getItem('ult_theme') === 'light') {
   document.body.classList.add('light');
   document.getElementById('btnTheme').textContent = '🌙';
 }
-if (!loadFromURL()) loadSession();
-requestWakeLock();
+loadSession();
 render();
 </script>
 </body>
