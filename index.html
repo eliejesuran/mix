@@ -725,7 +725,7 @@ body.light .setup-fields input { color-scheme: light; }
   <div class="line-override">
     <span>Gender :</span>
     <button class="btn-line" id="btnF" onclick="forceLine('F')">F</button>
-    <button class="btn-line" id="btnM" onclick="forceLine('M')">G</button>
+    <button class="btn-line" id="btnM" onclick="forceLine('M')">M</button>
   </div>
 </div>
 
@@ -734,7 +734,7 @@ body.light .setup-fields input { color-scheme: light; }
   <div class="receiver-btns">
     <button class="btn-receiver" id="rcvF" onclick="setReceiver('F')">F</button>
     <button class="btn-receiver" id="rcvNone" onclick="setReceiver(null)">—</button>
-    <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">G</button>
+    <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">M</button>
   </div>
   <!-- <span class="receiver-hint" id="rcvHint">appuyez sur un bouton de passe pour filtrer automatiquement</span> -->
 </div>
@@ -757,7 +757,7 @@ body.light .setup-fields input { color-scheme: light; }
           </div>
         </button>
         <button class="pass-btn mm" onclick="addPass('MM')">
-          <div class="pass-arrow">G → G</div>
+          <div class="pass-arrow">M → M</div>
           <div class="pass-sub">Garçon à garçon</div>
           <div class="pass-counts">
             <span class="pass-cnt-pt" id="pt-MM">0</span>
@@ -765,7 +765,7 @@ body.light .setup-fields input { color-scheme: light; }
           </div>
         </button>
         <button class="pass-btn fm" onclick="addPass('FM')">
-          <div class="pass-arrow">F → G</div>
+          <div class="pass-arrow">F → M</div>
           <div class="pass-sub">Fille à garçon</div>
           <div class="pass-counts">
             <span class="pass-cnt-pt" id="pt-FM">0</span>
@@ -773,7 +773,7 @@ body.light .setup-fields input { color-scheme: light; }
           </div>
         </button>
         <button class="pass-btn mf" onclick="addPass('MF')">
-          <div class="pass-arrow">G → F</div>
+          <div class="pass-arrow">M → F</div>
           <div class="pass-sub">Garçon à fille</div>
           <div class="pass-counts">
             <span class="pass-cnt-pt" id="pt-MF">0</span>
@@ -829,7 +829,7 @@ body.light .setup-fields input { color-scheme: light; }
       <div class="stats-title">Statistiques globales</div>
 
       <div class="stat-row"><span class="stat-lbl">Total passes</span><span class="stat-val" id="st-total">0</span></div>
-      <div class="stat-row"><span class="stat-lbl">Passes mixtes (F↔G)</span><span class="stat-val green" id="st-mixed">0</span></div>
+      <div class="stat-row"><span class="stat-lbl">Passes mixtes (F↔M)</span><span class="stat-val green" id="st-mixed">0</span></div>
       <div class="stat-row"><span class="stat-lbl">% mixité</span><span class="stat-val green" id="st-pct">—</span></div>
       <div class="stat-row"><span class="stat-lbl">Erreurs filles</span><span class="stat-val pink" id="st-errF">0</span></div>
       <div class="stat-row"><span class="stat-lbl">Erreurs garçons</span><span class="stat-val blue" id="st-errM">0</span></div>
@@ -840,15 +840,15 @@ body.light .setup-fields input { color-scheme: light; }
           <div class="bar-track"><div class="bar-fill" id="bf-FF" style="width:0%;background:#e8547a"></div></div>
         </div>
         <div class="bar-item">
-          <div class="bar-meta"><span class="bar-name">G → G</span><span class="bar-num" id="bv-MM">0</span></div>
+          <div class="bar-meta"><span class="bar-name">M → M</span><span class="bar-num" id="bv-MM">0</span></div>
           <div class="bar-track"><div class="bar-fill" id="bf-MM" style="width:0%;background:#4a9eff"></div></div>
         </div>
         <div class="bar-item">
-          <div class="bar-meta"><span class="bar-name">F → G</span><span class="bar-num" id="bv-FM">0</span></div>
+          <div class="bar-meta"><span class="bar-name">F → M</span><span class="bar-num" id="bv-FM">0</span></div>
           <div class="bar-track"><div class="bar-fill" id="bf-FM" style="width:0%;background:#3ecf7c"></div></div>
         </div>
         <div class="bar-item">
-          <div class="bar-meta"><span class="bar-name">G → F</span><span class="bar-num" id="bv-MF">0</span></div>
+          <div class="bar-meta"><span class="bar-name">M → F</span><span class="bar-num" id="bv-MF">0</span></div>
           <div class="bar-track"><div class="bar-fill" id="bf-MF" style="width:0%;background:#f5a623"></div></div>
         </div>
       </div>
@@ -1030,7 +1030,7 @@ function lineName(l) {
 }
 
 function passLabel(k) {
-  return { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' }[k] || k;
+  return { FF:'F → F', MM:'M → M', FM:'F → M', MF:'M → F' }[k] || k;
 }
 
 function updateNames() {
@@ -1095,7 +1095,7 @@ function addPass(type) {
   state.lastPass = type;
   state.actionLog.push({ time: new Date().toISOString(), type: 'pass', detail: type, line: currentLine() });
   // Catcher becomes next thrower: set receiver = catcher of this pass
-  // FF → F caught it, FM → G caught it, MM → G caught it, MF → F caught it
+  // FF → F caught it, FM → M caught it, MM → M caught it, MF → F caught it
   receiver = (type === 'FF' || type === 'MF') ? 'F' : 'M';
   // Mark unsaved
   document.getElementById('saveDot').className = 'save-dot';
@@ -1120,8 +1120,8 @@ function setReceiver(g) {
 function updatePassButtons() {
   const map = { FF: '.pass-btn.ff', MM: '.pass-btn.mm', FM: '.pass-btn.fm', MF: '.pass-btn.mf' };
   // receiver just caught → now they throw
-  // F has ball: F→F and F→G active (FF, FM)
-  // G has ball: G→G and G→F active (MM, MF)
+  // F has ball: F→F and F→M active (FF, FM)
+  // M has ball: M→M and M→F active (MM, MF)
   const active = !receiver ? ['FF','MM','FM','MF']
     : receiver === 'F' ? ['FF','FM']
     : ['MM','MF'];
@@ -1135,8 +1135,8 @@ function updatePassButtons() {
   document.getElementById('rcvNone').className = 'btn-receiver' + (!receiver ? ' active-m' : '');
   document.getElementById('rcvM').className    = 'btn-receiver' + (receiver === 'M' ? ' active-m' : '');
   const hints = {
-    F:    'F lance → F→F et F→G actives',
-    M:    'G lance → G→G et G→F actives',
+    F:    'F lance → F→F et F→M actives',
+    M:    'M lance → M→M et M→F actives',
     null: 'appuyez sur un bouton de passe pour filtrer automatiquement'
   };
   const hint = document.getElementById('rcvHint');
@@ -1294,7 +1294,7 @@ function renderPie(p, total) {
     ctx.fillStyle = colors[i]; ctx.fill();
     start += slice;
   });
-  const labels = { FF:'F → F', MM:'G → G', FM:'F → G', MF:'G → F' };
+  const labels = { FF:'F → F', MM:'M → M', FM:'F → M', MF:'M → F' };
   const leg = keys.map((k,i) => p[k] > 0
     ? `<div class="pie-item"><div class="pie-dot" style="background:${colors[i]}"></div><span>${labels[k]} : ${p[k]}</span></div>`
     : '').join('');
@@ -1380,8 +1380,8 @@ function exportXLSX() {
 
   // Feuille 2 — Points
   const ptRows = [['#', 'Équipe', 'Score A', 'Score B', 'Dernière passe', 'Ligne',
-    'FF pt', 'GG pt', 'FG pt', 'GF pt',
-    'Drop F pt', 'Drop G pt', 'Inc F pt', 'Inc G pt', 'Stall F pt', 'Stall G pt']];
+    'FF pt', 'MM pt', 'FM pt', 'MF pt',
+    'Drop F pt', 'Drop M pt', 'Inc F pt', 'Inc M pt', 'Stall F pt', 'Stall M pt']];
   state.pointLog.forEach((pt, i) => {
     ptRows.push([
       i+1, pt.teamName, pt.scoreA, pt.scoreB,
