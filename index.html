@@ -924,6 +924,7 @@ function connectToRoom(roomId) {
       state.tot = { ...snap.state.tot };
       state.pointLog  = snap.state.pointLog  ? snap.state.pointLog.map(p => ({ ...p, passes:{...p.passes}, errors:{...p.errors} })) : [];
       state.actionLog = snap.state.actionLog ? [...snap.state.actionLog] : [];
+      receiver = 'receiver' in snap ? snap.receiver : receiver;
       if (snap.nameA) document.getElementById('nameA').value = snap.nameA;
       if (snap.nameB) document.getElementById('nameB').value = snap.nameB;
       if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
@@ -962,6 +963,7 @@ function syncToServer() {
     type: 'sync',
     payload: {
       state: JSON.parse(JSON.stringify(state)),
+      receiver,
       nameA: document.getElementById('nameA').value,
       nameB: document.getElementById('nameB').value,
       matchDate: document.getElementById('matchDate').value

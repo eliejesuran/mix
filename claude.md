@@ -53,6 +53,7 @@ let receiver = null; // 'F'|'M'|null — lanceur courant, hors state
 - **`recordPoint` : champ `errors` inutile** — `errors: { ...state.pt }` est une copie de `pt` identique à `passes`. Le champ `errors` n'est jamais lu (l'export XLSX lit tout depuis `pt.passes`). C'est de la donnée morte.
 - **`forceLine` peut mettre `lineOverride` à `null`** — toggle sur le bouton déjà actif → `null`, qui est fonctionnellement identique à `'F'` dans `abbaLine` mais n'active aucun bouton dans l'UI. Comportement visuellement trompeur.
 - **`removePoint` ne restaure pas `pt`** — après `-1`, `pt` est à 0 (remis à zéro par `addPoint`). Le bouton `-1` est une correction de score, pas un vrai undo : préférer Ctrl+Z. Documenter ce comportement si c'est intentionnel.
+- ~~**`receiver` non propagé en session live**~~ ✓ corrigé — `receiver` ajouté au payload `syncToServer` et restauré dans `ws.onmessage` via `'receiver' in snap ? snap.receiver : receiver` (préserve `null`).
 
 ## Robustesse — pistes d'amélioration
 
