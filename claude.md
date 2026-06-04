@@ -1,113 +1,104 @@
 # ULT.MIX
 
-Suivi score + mixité ultimate frisbee mixte. Fichier unique `index.html` — HTML/CSS/JS vanilla, aucun bundler. Seule dépendance externe : xlsx.full.min.js (CDN) pour l'export Excel.
-
-Déployé sur GitHub Pages (`main`) et Infomaniak (statique). UI en français.
+Suivi score + mixité ultimate frisbee mixte. `index.html` unique — HTML/CSS/JS vanilla, aucun bundler.
+Dépendances CDN : xlsx.full.min.js (export Excel), api.qrserver.com (QR code).
+Déployé sur GitHub Pages (`main`) et Infomaniak (via GitHub Actions FTP). UI en français.
 
 ## State
 
 ```js
 const state = {
   scoreA, scoreB,
-  lineOverride,   // 'F'|'M' — décalage séquence ABBA (offset 0 ou 2)
+  lineOverride,   // 'F'|'M' — décalage ABBA (offset 0 ou 2)
   pt:  { FF, MM, FM, MF, dropF, dropM, incF, incM, stallF, stallM }, // point en cours
   tot: { FF, MM, FM, MF, dropF, dropM, incF, incM, stallF, stallM }, // cumulatif
   lastPass, pointLog, actionLog
 }
-let receiver = null; // 'F'|'M'|null — lanceur courant, hors state
+let receiver = null; // 'F'|'M'|null — qui a le disque actuellement, hors state
 ```
 
-`state` est le seul objet mutable. Toute action appelle `render()` en fin. `render()` est idempotent : relit `state` entièrement, ne jamais muter le DOM ailleurs.
+`state` est le seul objet mutable. Toute action appelle `render()` en fin. `render()` est idempotent.
 
 ## Invariants critiques
 
 **ABBA** : `ABBA_SEQ[( totalPoints + (lineOverride==='M' ? 2 : 0) ) % 4]` → `['F','M','M','F']`
 
-**Undo** : appeler `pushUndo()` avant toute mutation de `state` (max 50 snapshots, Ctrl+Z déclenche `undo()`).
+**Passes** : 2 boutons `→ F` / `→ M`. Premier clic du point (receiver=null) = initialise qui a le disque (pas de passe comptée). Clics suivants = `passBall(dest)` déduit le type `receiver+dest` (`FF`|`FM`|`MF`|`MM`), incrémente `pt`+`tot`, met à jour `receiver=dest`.
 
-**Receiver** : déduit de la dernière passe — FF/MF → receiver=F, MM/FM → receiver=M. Filtre les boutons via `.dim`. Remis à null après chaque point.
+**Undo** : `pushUndo()` avant toute mutation de `state` (max 50 snapshots, Ctrl+Z).
 
-**Save** : `saveSession()` auto sur chaque point marqué. Sur passes/erreurs, indicateur "non sauvegardé" uniquement.
+**Save** : `saveSession()` auto sur chaque point marqué. Passes/erreurs → indicateur "non sauvegardé".
 
 ## Fonctions clés
 
 | Fonction | Rôle |
 |---|---|
-| `addPass(type)` | incrémente pt+tot, met à jour receiver, marque non-sauvegardé |
-| `addPoint(team)` | enregistre pointLog, remet pt à zéro, auto-save |
-| `removePoint(team)` | pop pointLog, décrémente score |
-| `addError(type)` | incrémente pt+tot, reset receiver |
-| `forceLine(g)` | toggle lineOverride F/M |
-| `copySessionLink()` | encode state en base64 → `?s=<payload>` |
-| `loadFromURL()` | décode `?s=` au chargement |
+| `passBall(dest)` | 1er clic: init receiver. Suivants: déduit type, incrémente pt+tot |
+| `addPoint(team)` | snapshot pointLog, reset pt, auto-save |
+| `removePoint(team)` | pop pointLog, décrémente score (pas de restore pt — préférer Ctrl+Z) |
+| `addError(type)` | incrémente pt+tot, reset receiver à null |
+| `forceLine(g)` | toggle lineOverride F/M (null si toggle off → bug visuel, voir ci-dessous) |
+| `copySessionLink()` | crée room Render → QR + URL |
+| `loadFromURL()` | décode `?s=` au chargement (fallback sans SERVER_URL) |
 | `saveSession()` / `loadSession()` | localStorage `ult_mix_score` |
 | `exportXLSX()` | 3 feuilles : Résumé / Points / Journal |
 
-## Bugs connus
+## Live sync (Render)
 
-### ~~Critique~~ ✓ Corrigé
-~~**`loadFromURL()` n'est jamais appelée**~~ — Init remplacé par `if (!loadFromURL()) loadSession();`.
+`server/server.js` — Node.js WebSocket relay. `SERVER_URL` à configurer dans `index.html`.
 
-### Mineurs
-- **Wake lock non demandé au chargement initial** — `requestWakeLock()` n'est déclenchée que sur `visibilitychange`, pas au premier chargement. Fix : appeler `requestWakeLock()` dans Init.
-- **`recordPoint` : champ `errors` inutile** — `errors: { ...state.pt }` est une copie de `pt` identique à `passes`. Le champ `errors` n'est jamais lu (l'export XLSX lit tout depuis `pt.passes`). C'est de la donnée morte.
-- **`forceLine` peut mettre `lineOverride` à `null`** — toggle sur le bouton déjà actif → `null`, qui est fonctionnellement identique à `'F'` dans `abbaLine` mais n'active aucun bouton dans l'UI. Comportement visuellement trompeur.
-- **`removePoint` ne restaure pas `pt`** — après `-1`, `pt` est à 0 (remis à zéro par `addPoint`). Le bouton `-1` est une correction de score, pas un vrai undo : préférer Ctrl+Z. Documenter ce comportement si c'est intentionnel.
-- ~~**`receiver` non propagé en session live**~~ ✓ corrigé — `receiver` ajouté au payload `syncToServer` et restauré dans `ws.onmessage` via `'receiver' in snap ? snap.receiver : receiver` (préserve `null`).
+```js
+const SERVER_URL = 'https://ultmix-relay.onrender.com'; // à remplacer après déploiement
+```
 
-## Robustesse — pistes d'amélioration
+- `POST /room` → crée room (6-char ID), expire strictement à `createdAt + 24h`
+- `WS /ws?room=id` → relay last-write-wins, `type: 'ping'` absorbé, `4010` = expiré, `4004` = inconnu
+- Front : `syncToServer()` en fin de `render()` (bloqué par `isRemoteUpdate`), keep-alive ping/10min
+- `receiver` inclus dans le payload sync
 
-- **Pas de versioning du state** — si le schéma de `state` évolue, un `localStorage` ancien peut corrompre silencieusement l'app. Ajouter un champ `version` dans le snap et migrer à `loadSession`.
-- **localStorage sans gestion d'erreur de quota** — `localStorage.setItem` peut lever une exception `QuotaExceededError` (limite 5 Mo). Entourer `saveSession()` d'un try/catch avec fallback.
-- **`loadSession` / `loadFromURL` : `Object.assign` superficiel** — si un snapshot est incomplet (clé manquante dans `pt`/`tot`), les valeurs manquantes restent `undefined` et créent des `NaN` silencieux dans les stats. Ajouter une normalisation (`snap.state.pt = { ...defaultPt, ...snap.state.pt }`).
-- **`copySessionLink` inclut `actionLog`** — le journal complet est dans le payload URL, ce qui fait exploser la taille pour les longs matchs. Exclure `actionLog` du partage URL (il est déjà dans l'export XLSX).
-- **Dépendance CDN unique** — si cdnjs est indisponible, l'export XLSX est silencieusement cassé. Ajouter un guard `if (typeof XLSX === 'undefined') { alert(...); return; }` dans `exportXLSX`.
-- **`render()` interroge le DOM à chaque action** — acceptable pour l'instant, mais si le pointLog devient long, `renderLog()` reconstruit tout le HTML à chaque passe. Optimisation possible : ne mettre à jour `renderLog` que quand `pointLog` change.
+Déploiement Render : New Web Service → Root Directory: `server` → Start: `node server.js`
+
+## Déploiement auto Infomaniak
+
+`.github/workflows/deploy-infomaniak.yml` — déclenché sur push `main` si `index.html` modifié.
+Secrets GitHub requis : `FTP_HOST`, `FTP_USER`, `FTP_PASSWORD`, `FTP_PATH` (dossier, ex: `/web/`).
 
 ## Conventions de nommage
 
-| Préfixe | Usage |
-|---|---|
-| `pt-` | IDs compteurs par point (`pt-FF`, `pt-dropF`…) |
-| `tot-` | IDs totaux cumulés (`tot-FF`…) |
-| `st-` | IDs stats globales (`st-total`, `st-pct`…) |
-| `bf-` / `bv-` | IDs barres de progression (fill / value) |
-| `btn` | Boutons nommés (`btnF`, `btnM`, `btnUndo`…) |
-| `lbl` | Labels équipe (`lblA`, `lblB`) |
+`pt-toF` / `pt-toM` — compteurs passes vers F/G sur le bouton (agrégés : FF+MF / FM+MM)  
+`pt-dropF` etc. — IDs erreurs  
+`st-` — stats globales (`st-total`, `st-pct`…)  
+`bf-` / `bv-` — barres progression (fill / value)  
+Types de passes : `FF` `MM` `FM` `MF` — Erreurs : `dropF` `dropM` `incF` `incM` `stallF` `stallM`
 
-Types de passes : `FF` `MM` `FM` `MF` — Erreurs : `dropF` `dropM` `incF` `incM` `stallF` `stallM` — Genres : `'F'` filles, `'M'` garçons
+## Bugs corrigés (cette session)
+
+- ~~`forceLine` → null~~ : toggle retombe sur `'F'` (jamais `null`)
+- ~~`recordPoint.errors`~~ : champ mort supprimé
+- ~~`removePoint`~~ : soustrait maintenant les passes du point annulé de `tot` via `removed.passes`
+- ~~`loadFromURL` jamais appelée~~ : init utilise `if (!loadFromURL()) loadSession()`
+- ~~`receiver` non propagé en live~~ : inclus dans payload `syncToServer`
+
+## Idées d'amélioration
+
+### Bugs / robustesse
+- ~~**Versioning state**~~ : `STATE_VERSION=1` + `applySnap()` normalise `pt`/`tot` avec `DEFAULT_COUNTERS` spread
+- **localStorage quota** : `setItem` peut lever `QuotaExceededError` — pas de try/catch dans `saveSession`
+- **Guard CDN xlsx** : si cdnjs indisponible, export silencieusement cassé — ajouter `if (typeof XLSX === 'undefined') { alert(...); return; }`
+- **`forceLine` null** : remplacer toggle par set explicite (`lineOverride = lineOverride === g ? 'F' : g`)
+
+### UX
+- **Premier clic du point** : actuellement le 1er clic initialise le disque sans compter de passe — envisager une indication visuelle claire ("Qui commence ?") tant que receiver=null
+- **Bouton Gender F présélectionné** : cohérent avec ABBA par défaut, mais peu évident — tooltip ou label explicatif
+- **Score flash** : l'animation score est bonne, envisager vibration haptic (`navigator.vibrate`) sur mobile lors d'un point
+- **Multi-match** : bouton pour exporter/importer la session JSON et reprendre sur un autre appareil
+
+### Infra
+- **Render cold start** : retry 3× côté front, mais 20s/tentative peut frustrater — envisager un keep-alive externe (ex: UptimeRobot ping `/ping` toutes les 14 min)
+- **`copySessionLink` sans SERVER_URL** : fallback base64 inclut `actionLog` → URL très longue. Exclure `actionLog` du payload `?s=`
+- **Room expiry** : purge toutes les heures → une room peut vivre jusqu'à ~25h. Acceptable
+- **Pas de persistance room** : si le serveur Render redémarre (déploiement, crash), toutes les rooms en mémoire sont perdues — envisager Redis ou KV Cloudflare pour les sessions actives
 
 ## TODO
 
-- **Multi-match** : bouton pour copier/envoyer la session ; vérifier le fonctionnement sur mobile
-
-## Partage de session
-
-**Problème actuel** : `?s=` encode `state` complet (actionLog inclus) en base64 → URL très longue, snapshot figé, pas de QR.
-
-**v1.5 — fix rapide (sans serveur)**
-- Exclure `actionLog` du payload → réduction ×5
-- LZ-String (CDN) pour compresser le JSON avant base64 → −60 % supplémentaire
-- QR code client-side via qrcode.js (CDN)
-
-**v2 — live sync (implémenté, à déployer)**  
-Serveur : `server/server.js` — Node.js WebSocket relay, sans base de données, déployable sur Render (Free tier).
-
-Configurer `SERVER_URL` dans `index.html` après déploiement :
-```js
-const SERVER_URL = 'https://ultmix-relay.onrender.com'; // à remplacer
-```
-
-Flux :
-1. Scoreur A clique "Lien session" → `POST /room` → room `abc123` → `?room=abc123`
-2. QR code généré (via api.qrserver.com) + URL copiée dans le presse-papier
-3. Scoreur B scanne → `connectToRoom('abc123')` → reçoit l'état courant via WS
-4. Chaque `render()` appelle `syncToServer()` → broadcast aux autres clients de la room
-5. Anti-boucle : flag `isRemoteUpdate` bloque le re-sync sur réception
-6. Reconnexion auto : `ws.onclose` retente toutes les 3s si `currentRoom` est défini
-7. Badge "● abc123" dans l'UI indique la connexion live ; clic ré-ouvre le QR
-
-Déploiement Render :
-- New Web Service → repo GitHub → Root Directory : `server`
-- Build command : `npm install` — Start command : `node server.js`
-- Free tier suffisant (le serveur reste éveillé pendant le match)
+- Multi-match : bouton copier/envoyer session, tester mobile terrain

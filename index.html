@@ -612,8 +612,8 @@ body.light .setup-fields input { color-scheme: light; }
   .pass-arrow { font-size: 20px; }
   .pass-cnt-pt { font-size: 26px; }
 
-  /* Error grid: 2 cols on mobile (3 too cramped) */
-  .err-grid { grid-template-columns: 1fr 1fr; }
+  /* Error grid: 3 cols pour maintenir les rangées F / G */
+  .err-grid { grid-template-columns: repeat(3, 1fr); }
   .err-btn { padding: 14px 6px; }
   .err-cnt-pt { font-size: 22px; }
 
@@ -628,6 +628,52 @@ body.light .setup-fields input { color-scheme: light; }
   /* Stats panel */
   .stats-panel { padding: 14px; }
 }
+
+/* ── 2-BUTTON PASS GRID ── */
+.pass-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pass-btn2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.pass-btn2::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.15s; }
+.pass-btn2:hover::before { opacity: 1; }
+.pass-btn2:active { transform: scale(0.97); }
+.pass-btn2.pf { border-color: var(--pink); }
+.pass-btn2.pf::before { background: var(--pink-dim); }
+.pass-btn2.pm { border-color: var(--blue); }
+.pass-btn2.pm::before { background: var(--blue-dim); }
+.pass-arrow2 {
+  font-family: 'Space Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+.pass-btn2.pf .pass-arrow2 { color: var(--pink); }
+.pass-btn2.pm .pass-arrow2 { color: var(--blue); }
+.pass-btn2 .pass-sub, .pass-btn2 .pass-counts { position: relative; z-index: 1; }
+
+/* Error rows: F (pink) top, G (blue) bottom */
+.err-btn.err-f:hover { border-color: var(--pink); background: var(--pink-dim); }
+.err-btn.err-m:hover { border-color: var(--blue);  background: var(--blue-dim); }
+.err-btn.err-f .err-cnt-pt { color: var(--pink); }
+.err-btn.err-m .err-cnt-pt { color: var(--blue); }
 
 /* ── LIVE SESSION ── */
 .modal-overlay {
@@ -729,15 +775,6 @@ body.light .setup-fields input { color-scheme: light; }
   </div>
 </div>
 
-<div class="receiver-bar">
-  <span class="receiver-label">Reçoit&nbsp;:</span>
-  <div class="receiver-btns">
-    <button class="btn-receiver" id="rcvF" onclick="setReceiver('F')">F</button>
-    <button class="btn-receiver" id="rcvNone" onclick="setReceiver(null)">—</button>
-    <button class="btn-receiver" id="rcvM" onclick="setReceiver('M')">M</button>
-  </div>
-  <!-- <span class="receiver-hint" id="rcvHint">appuyez sur un bouton de passe pour filtrer automatiquement</span> -->
-</div>
 
 <div class="main">
   <div class="left-col">
@@ -747,37 +784,21 @@ body.light .setup-fields input { color-scheme: light; }
     </div>
 
     <div id="pane-passes" class="pane active">
-      <div class="pass-grid">
-        <button class="pass-btn ff" onclick="addPass('FF')">
-          <div class="pass-arrow">F → F</div>
-          <div class="pass-sub">Femme à femme</div>
+      <div class="pass-grid-2">
+        <button class="pass-btn2 pf" onclick="passBall('F')">
+          <div class="pass-arrow2" id="passLabelF">F</div>
+          <div class="pass-sub" id="passSubF">Qui a le disque ?</div>
           <div class="pass-counts">
-            <span class="pass-cnt-pt" id="pt-FF">0</span>
-            <span class="pass-cnt-total" id="tot-FF">(0 total)</span>
+            <span class="pass-cnt-pt" id="pt-toF">0</span>
+            <span class="pass-cnt-total" id="tot-toF">(0)</span>
           </div>
         </button>
-        <button class="pass-btn mm" onclick="addPass('MM')">
-          <div class="pass-arrow">M → M</div>
-          <div class="pass-sub">Homme à homme</div>
+        <button class="pass-btn2 pm" onclick="passBall('M')">
+          <div class="pass-arrow2" id="passLabelM">G</div>
+          <div class="pass-sub" id="passSubM">Qui a le disque ?</div>
           <div class="pass-counts">
-            <span class="pass-cnt-pt" id="pt-MM">0</span>
-            <span class="pass-cnt-total" id="tot-MM">(0 total)</span>
-          </div>
-        </button>
-        <button class="pass-btn fm" onclick="addPass('FM')">
-          <div class="pass-arrow">F → M</div>
-          <div class="pass-sub">Femme à homme</div>
-          <div class="pass-counts">
-            <span class="pass-cnt-pt" id="pt-FM">0</span>
-            <span class="pass-cnt-total" id="tot-FM">(0 total)</span>
-          </div>
-        </button>
-        <button class="pass-btn mf" onclick="addPass('MF')">
-          <div class="pass-arrow">M → F</div>
-          <div class="pass-sub">Homme à femme</div>
-          <div class="pass-counts">
-            <span class="pass-cnt-pt" id="pt-MF">0</span>
-            <span class="pass-cnt-total" id="tot-MF">(0 total)</span>
+            <span class="pass-cnt-pt" id="pt-toM">0</span>
+            <span class="pass-cnt-total" id="tot-toM">(0)</span>
           </div>
         </button>
       </div>
@@ -785,28 +806,28 @@ body.light .setup-fields input { color-scheme: light; }
 
     <div id="pane-errors" class="pane">
       <div class="err-grid">
-        <button class="err-btn" onclick="addError('dropF')">
-          <div class="err-label">Drop femme</div>
+        <button class="err-btn err-f" onclick="addError('dropF')">
+          <div class="err-label">Drop F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-dropF">0</span><span class="err-cnt-total" id="tot-dropF">(0)</span></div>
         </button>
-        <button class="err-btn" onclick="addError('dropM')">
-          <div class="err-label">Drop homme</div>
-          <div class="err-counts"><span class="err-cnt-pt" id="pt-dropM">0</span><span class="err-cnt-total" id="tot-dropM">(0)</span></div>
-        </button>
-        <button class="err-btn" onclick="addError('incF')">
-          <div class="err-label">Incompl. femme</div>
+        <button class="err-btn err-f" onclick="addError('incF')">
+          <div class="err-label">Incompl. F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-incF">0</span><span class="err-cnt-total" id="tot-incF">(0)</span></div>
         </button>
-        <button class="err-btn" onclick="addError('incM')">
-          <div class="err-label">Incompl. homme</div>
-          <div class="err-counts"><span class="err-cnt-pt" id="pt-incM">0</span><span class="err-cnt-total" id="tot-incM">(0)</span></div>
-        </button>
-        <button class="err-btn" onclick="addError('stallF')">
-          <div class="err-label">Stall femme</div>
+        <button class="err-btn err-f" onclick="addError('stallF')">
+          <div class="err-label">Stall F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-stallF">0</span><span class="err-cnt-total" id="tot-stallF">(0)</span></div>
         </button>
-        <button class="err-btn" onclick="addError('stallM')">
-          <div class="err-label">Stall homme</div>
+        <button class="err-btn err-m" onclick="addError('dropM')">
+          <div class="err-label">Drop M</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-dropM">0</span><span class="err-cnt-total" id="tot-dropM">(0)</span></div>
+        </button>
+        <button class="err-btn err-m" onclick="addError('incM')">
+          <div class="err-label">Incompl. M</div>
+          <div class="err-counts"><span class="err-cnt-pt" id="pt-incM">0</span><span class="err-cnt-total" id="tot-incM">(0)</span></div>
+        </button>
+        <button class="err-btn err-m" onclick="addError('stallM')">
+          <div class="err-label">Stall M</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-stallM">0</span><span class="err-cnt-total" id="tot-stallM">(0)</span></div>
         </button>
       </div>
@@ -883,6 +904,8 @@ body.light .setup-fields input { color-scheme: light; }
 // Standard mixed ultimate: starting team is F-line, ABBA determines majority
 // position in ABBA pattern: [F,M,M,F, F,M,M,F, ...]
 const ABBA_SEQ = ['F','M','M','F']; // 4-cycle
+const STATE_VERSION = 1;
+const DEFAULT_COUNTERS = { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 };
 
 // ── LIVE SESSION — 
 const SERVER_URL = 'https://mix-5mf7.onrender.com'; 
@@ -1000,16 +1023,15 @@ function pushUndo() {
 }
 
 const state = {
+  version: STATE_VERSION,
   scoreA: 0,
   scoreB: 0,
-  lineOverride: 'F', // 'F'|'M' = ABBA offset; 'F' by default
-  // per-point counters (reset each point)
-  pt: { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 },
-  // cumulative totals
-  tot: { FF:0, MM:0, FM:0, MF:0, dropF:0, dropM:0, incF:0, incM:0, stallF:0, stallM:0 },
-  lastPass: null, // last pass type this point
-  pointLog: [],  // {num, team, score, lastPass, line, passes:{...}, errors:{...}}
-  actionLog: []  // full action-by-action log
+  lineOverride: 'F',
+  pt:  { ...DEFAULT_COUNTERS },
+  tot: { ...DEFAULT_COUNTERS },
+  lastPass: null,
+  pointLog: [],
+  actionLog: []
 };
 
 function totalPoints() { return state.scoreA + state.scoreB; }
@@ -1064,8 +1086,7 @@ function recordPoint(team) {
     scoreB: state.scoreB,
     lastPass: state.lastPass,
     line,
-    passes: { ...state.pt },
-    errors: { ...state.pt }
+    passes: { ...state.pt }
   });
 }
 
@@ -1086,20 +1107,31 @@ function removePoint(team) {
   if (state['score' + team] <= 0) return;
   pushUndo();
   state['score' + team]--;
-  if (state.pointLog.length > 0) state.pointLog.pop();
+  if (state.pointLog.length > 0) {
+    const removed = state.pointLog.pop();
+    // Soustrait les passes du point annulé du total cumulé
+    Object.keys(removed.passes).forEach(k => {
+      if (state.tot[k] !== undefined) state.tot[k] = Math.max(0, state.tot[k] - removed.passes[k]);
+    });
+  }
   render();
 }
 
-function addPass(type) {
+function passBall(dest) {
   pushUndo();
+  if (receiver === null) {
+    // Début de point : initialise qui a le disque, sans compter de passe
+    receiver = dest;
+    render();
+    return;
+  }
+  // Passe : thrower = receiver courant, catcher = dest
+  const type = receiver + dest; // 'FF' | 'FM' | 'MF' | 'MM'
   state.pt[type]++;
   state.tot[type]++;
   state.lastPass = type;
   state.actionLog.push({ time: new Date().toISOString(), type: 'pass', detail: type, line: currentLine() });
-  // Catcher becomes next thrower: set receiver = catcher of this pass
-  // FF → F caught it, FM → M caught it, MM → M caught it, MF → F caught it
-  receiver = (type === 'FF' || type === 'MF') ? 'F' : 'M';
-  // Mark unsaved
+  receiver = dest;
   document.getElementById('saveDot').className = 'save-dot';
   document.getElementById('saveLabel').textContent = 'Sauvegarder';
   render();
@@ -1112,37 +1144,6 @@ function addError(type) {
   state.actionLog.push({ time: new Date().toISOString(), type: 'error', detail: type, line: currentLine() });
   receiver = null;
   render();
-}
-
-function setReceiver(g) {
-  receiver = g;
-  render();
-}
-
-function updatePassButtons() {
-  const map = { FF: '.pass-btn.ff', MM: '.pass-btn.mm', FM: '.pass-btn.fm', MF: '.pass-btn.mf' };
-  // receiver just caught → now they throw
-  // F has ball: F→F and F→M active (FF, FM)
-  // M has ball: M→M and M→F active (MM, MF)
-  const active = !receiver ? ['FF','MM','FM','MF']
-    : receiver === 'F' ? ['FF','FM']
-    : ['MM','MF'];
-  Object.entries(map).forEach(([k, sel]) => {
-    const btn = document.querySelector(sel);
-    if (active.includes(k)) btn.classList.remove('dim');
-    else btn.classList.add('dim');
-  });
-  // update receiver buttons visual
-  document.getElementById('rcvF').className    = 'btn-receiver' + (receiver === 'F' ? ' active-f' : '');
-  document.getElementById('rcvNone').className = 'btn-receiver' + (!receiver ? ' active-m' : '');
-  document.getElementById('rcvM').className    = 'btn-receiver' + (receiver === 'M' ? ' active-m' : '');
-  const hints = {
-    F:    'F lance → F→F et F→M actives',
-    M:    'M lance → M→M et M→F actives',
-    null: 'appuyez sur un bouton de passe pour filtrer automatiquement'
-  };
-  const hint = document.getElementById('rcvHint');
-  if (hint) hint.textContent = hints[receiver] || hints['null'];
 }
 
 function saveSession() {
@@ -1161,13 +1162,25 @@ function saveSession() {
   lbl.textContent = 'Sauvegardé';
 }
 
+function applySnap(snap) {
+  if (!snap?.state) return false;
+  Object.assign(state, snap.state);
+  state.version = STATE_VERSION;
+  // Normalise les clés manquantes (ancien schéma) → évite les NaN silencieux
+  state.pt  = { ...DEFAULT_COUNTERS, ...snap.state.pt };
+  state.tot = { ...DEFAULT_COUNTERS, ...snap.state.tot };
+  state.pointLog  = snap.state.pointLog  || [];
+  state.actionLog = snap.state.actionLog || [];
+  receiver = snap.receiver ?? null;
+  return true;
+}
+
 function loadSession() {
   try {
     const raw = localStorage.getItem('ult_mix_score');
     if (!raw) return;
     const snap = JSON.parse(raw);
-    Object.assign(state, snap.state);
-    receiver = snap.receiver || null;
+    if (!applySnap(snap)) return;
     document.getElementById('nameA').value = snap.nameA || 'Équipe A';
     document.getElementById('nameB').value = snap.nameB || 'Équipe B';
     if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
@@ -1204,7 +1217,7 @@ document.addEventListener('keydown', e => {
 });
 
 function forceLine(g) {
-  state.lineOverride = state.lineOverride === g ? null : g;
+  state.lineOverride = state.lineOverride === g ? 'F' : g;
   render();
 }
 
@@ -1232,11 +1245,22 @@ function render() {
   document.getElementById('btnF').className = 'btn-line' + (state.lineOverride === 'F' ? ' active-f' : '');
   document.getElementById('btnM').className = 'btn-line' + (state.lineOverride === 'M' ? ' active-m' : '');
 
-  // per-point + total pass counts
-  ['FF','MM','FM','MF'].forEach(k => {
-    document.getElementById('pt-' + k).textContent = state.pt[k];
-    document.getElementById('tot-' + k).textContent = '(' + state.tot[k] + ' total)';
-  });
+  // compteurs boutons passes (agrégés par genre cible)
+  const pt = state.pt, tt = state.tot;
+  document.getElementById('pt-toF').textContent  = pt.FF + pt.MF;
+  document.getElementById('tot-toF').textContent = '(' + (tt.FF + tt.MF) + ')';
+  document.getElementById('pt-toM').textContent  = pt.FM + pt.MM;
+  document.getElementById('tot-toM').textContent = '(' + (tt.FM + tt.MM) + ')';
+  // libellés dynamiques selon qui a le disque
+  const [lF, sF, lM, sM] = receiver === null
+    ? ['→ F', 'Qui a le disque ?', '→ M', 'Qui a le disque ?']
+    : receiver === 'F'
+      ? ['→ F', 'Femme à femme', '→ M', 'Femme à homme']
+      : ['→ F', 'Homme à femme', '→ M', 'Homme à homme'];
+  document.getElementById('passLabelF').textContent = lF;
+  document.getElementById('passSubF').textContent   = sF;
+  document.getElementById('passLabelM').textContent = lM;
+  document.getElementById('passSubM').textContent   = sM;
   // per-point + total error counts
   ['dropF','dropM','incF','incM','stallF','stallM'].forEach(k => {
     document.getElementById('pt-' + k).textContent = state.pt[k];
@@ -1270,8 +1294,6 @@ function render() {
   // point log
   renderLog();
 
-  // receiver filter
-  updatePassButtons();
   // live sync
   syncToServer();
 }
@@ -1477,8 +1499,7 @@ function loadFromURL() {
     const s = params.get('s');
     if (!s) return false;
     const snap = JSON.parse(decodeURIComponent(escape(atob(s))));
-    Object.assign(state, snap.state);
-    receiver = snap.receiver || null;
+    if (!applySnap(snap)) return false;
     document.getElementById('nameA').value = snap.nameA || 'Équipe A';
     document.getElementById('nameB').value = snap.nameB || 'Équipe B';
     if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
