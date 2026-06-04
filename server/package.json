@@ -1,0 +1,7 @@
+{
+  "name": "ultmix-relay",
+  "version": "1.0.0",
+  "description": "WebSocket relay for ULT.MIX live session sharing",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}

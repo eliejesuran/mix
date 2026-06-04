@@ -628,6 +628,55 @@ body.light .setup-fields input { color-scheme: light; }
   /* Stats panel */
   .stats-panel { padding: 14px; }
 }
+
+/* ── LIVE SESSION ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 28px 24px;
+  max-width: 300px;
+  width: 90%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.live-badge {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--green);
+  background: var(--green-dim);
+  color: var(--green);
+  font-size: 12px;
+  font-family: 'Space Mono', monospace;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.live-badge.on { display: flex; }
+.live-badge:hover { filter: brightness(1.2); }
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: livePulse 1.5s ease infinite;
+}
+@keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 </style>
 </head>
 <body>
@@ -768,6 +817,10 @@ body.light .setup-fields input { color-scheme: light; }
       <button class="btn-action undo" id="btnUndo" onclick="undo()" disabled title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
       <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button> 
       <button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>
+      <div class="live-badge" id="liveBadge" onclick="showRoomModal()" title="Session live — cliquez pour revoir le QR">
+        <span class="live-dot"></span>
+        <span id="liveBadgeLabel">—</span>
+      </div>
     </div>
   </div>
 
@@ -813,6 +866,16 @@ body.light .setup-fields input { color-scheme: light; }
   </div>
 </div>
 
+<div class="modal-overlay" id="roomModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <div class="stats-title">SESSION EN DIRECT</div>
+    <img id="qrImg" src="" alt="QR Code" width="180" height="180" style="border-radius:8px;border:1px solid var(--border)">
+    <div style="font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--green)" id="roomLabel">—</div>
+    <div style="font-size:11px;color:var(--text3)">Scannez le QR ou partagez l'URL<br>(déjà copiée dans le presse-papier)</div>
+    <button class="btn-action" onclick="document.getElementById('roomModal').classList.remove('open')">Fermer</button>
+  </div>
+</div>
+
 <script>
 // ── ABBA sequence: determines line from total points played
 // ABBA: 0→A, 1→B, 2→B, 3→A, 4→A, 5→B, 6→B... repeating ABBA
@@ -820,6 +883,70 @@ body.light .setup-fields input { color-scheme: light; }
 // Standard mixed ultimate: starting team is F-line, ABBA determines majority
 // position in ABBA pattern: [F,M,M,F, F,M,M,F, ...]
 const ABBA_SEQ = ['F','M','M','F']; // 4-cycle
+
+// ── LIVE SESSION — 
+const SERVER_URL = 'https://mix-5mf7.onrender.com'; 
+let ws = null;
+let currentRoom = null;
+let isRemoteUpdate = false; // évite la boucle sync → render → sync
+
+function connectToRoom(roomId) {
+  if (ws) { ws.onclose = null; ws.close(); }
+  currentRoom = roomId;
+  const wsBase = SERVER_URL.replace(/^http/, 'ws');
+  ws = new WebSocket(`${wsBase}/ws?room=${roomId}`);
+
+  ws.onopen = () => {
+    document.getElementById('liveBadge').classList.add('on');
+    document.getElementById('liveBadgeLabel').textContent = roomId;
+    syncToServer(); // push our current state to the room
+  };
+
+  ws.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type !== 'sync') return;
+      const snap = msg.payload;
+      isRemoteUpdate = true;
+      Object.assign(state, snap.state);
+      state.pt  = { ...snap.state.pt };
+      state.tot = { ...snap.state.tot };
+      state.pointLog  = snap.state.pointLog  ? snap.state.pointLog.map(p => ({ ...p, passes:{...p.passes}, errors:{...p.errors} })) : [];
+      state.actionLog = snap.state.actionLog ? [...snap.state.actionLog] : [];
+      if (snap.nameA) document.getElementById('nameA').value = snap.nameA;
+      if (snap.nameB) document.getElementById('nameB').value = snap.nameB;
+      if (snap.matchDate) document.getElementById('matchDate').value = snap.matchDate;
+      updateNames();
+      render();
+      isRemoteUpdate = false;
+    } catch {}
+  };
+
+  ws.onclose = () => {
+    document.getElementById('liveBadge').classList.remove('on');
+    // Reconnexion automatique si la room est toujours active
+    if (currentRoom) setTimeout(() => connectToRoom(currentRoom), 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function syncToServer() {
+  if (!ws || ws.readyState !== 1 || isRemoteUpdate) return;
+  ws.send(JSON.stringify({
+    type: 'sync',
+    payload: {
+      state: JSON.parse(JSON.stringify(state)),
+      nameA: document.getElementById('nameA').value,
+      nameB: document.getElementById('nameB').value,
+      matchDate: document.getElementById('matchDate').value
+    }
+  }));
+}
+
+function showRoomModal() {
+  document.getElementById('roomModal').classList.add('open');
+}
 
 let receiver = null; // F, M, or null
 const undoStack = []; // stack of {state snapshot, receiver}
@@ -1107,6 +1234,8 @@ function render() {
 
   // receiver filter
   updatePassButtons();
+  // live sync
+  syncToServer();
 }
 
 function renderPie(p, total) {
@@ -1242,23 +1371,54 @@ function exportXLSX() {
 
   XLSX.writeFile(wb, `ultimate_${teamA.replace(/\s+/g,'_')}_vs_${teamB.replace(/\s+/g,'_')}_${date}.xlsx`);
 }
-function copySessionLink() {
-  const snap = {
-    state: JSON.parse(JSON.stringify(state)),
-    receiver,
-    nameA: document.getElementById('nameA').value,
-    nameB: document.getElementById('nameB').value,
-    matchDate: document.getElementById('matchDate').value,
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
-  const url = location.href.split('?')[0] + '?s=' + encoded;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.getElementById('btnLink');
-    btn.textContent = '✓ Copié !';
-    setTimeout(() => btn.textContent = 'Lien session', 2000);
-  }).catch(() => {
-    prompt('Copie ce lien :', url);
-  });
+async function copySessionLink() {
+  // Si déjà dans une room live, ré-afficher le modal
+  if (currentRoom && ws && ws.readyState === 1) {
+    showRoomModal(); return;
+  }
+
+  // Sans SERVER_URL configuré : fallback base64
+  if (!SERVER_URL) {
+    const snap = {
+      state: JSON.parse(JSON.stringify(state)), receiver,
+      nameA: document.getElementById('nameA').value,
+      nameB: document.getElementById('nameB').value,
+      matchDate: document.getElementById('matchDate').value,
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
+    const url = location.href.split('?')[0] + '?s=' + encoded;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('btnLink');
+      btn.textContent = '✓ Copié !';
+      setTimeout(() => btn.textContent = 'Lien session', 2000);
+    }).catch(() => prompt('Copie ce lien :', url));
+    return;
+  }
+
+  // Créer une room live sur le serveur Render
+  const btn = document.getElementById('btnLink');
+  btn.textContent = '⏳ Connexion…';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${SERVER_URL}/room`, { method: 'POST' });
+    if (!res.ok) throw new Error('server error');
+    const { roomId } = await res.json();
+
+    connectToRoom(roomId);
+
+    const url = location.href.split('?')[0] + '?room=' + roomId;
+    navigator.clipboard.writeText(url).catch(() => {});
+
+    document.getElementById('qrImg').src =
+      `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=180x180&margin=4`;
+    document.getElementById('roomLabel').textContent = roomId;
+    showRoomModal();
+  } catch {
+    alert('Serveur indisponible (cold start Render ~30 s). Réessayez dans un moment.');
+  } finally {
+    btn.textContent = 'Lien session';
+    btn.disabled = false;
+  }
 }
 
 function loadFromURL() {
@@ -1303,7 +1463,17 @@ if (localStorage.getItem('ult_theme') === 'light') {
   document.body.classList.add('light');
   document.getElementById('btnTheme').textContent = '🌙';
 }
-loadSession();
+requestWakeLock();
+const _roomParam = new URLSearchParams(location.search).get('room');
+if (_roomParam && SERVER_URL) {
+  // Rejoindre une session live — l'état viendra du serveur via WS
+  connectToRoom(_roomParam);
+  document.getElementById('qrImg').src =
+    `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(location.href)}&size=180x180&margin=4`;
+  document.getElementById('roomLabel').textContent = _roomParam;
+} else {
+  if (!loadFromURL()) loadSession();
+}
 render();
 </script>
 </body>
