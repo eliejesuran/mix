@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f1117"/>
+  <!-- Disc outer ring -->
+  <circle cx="256" cy="230" r="148" fill="none" stroke="#e8547a" stroke-width="22"/>
+  <!-- Disc inner ring -->
+  <circle cx="256" cy="230" r="90" fill="none" stroke="#e8547a" stroke-width="10" opacity="0.5"/>
+  <!-- Disc center dot -->
+  <circle cx="256" cy="230" r="18" fill="#e8547a"/>
+  <!-- Flight lines -->
+  <path d="M160 210 Q200 195 256 230 Q312 265 360 248" fill="none" stroke="#4a9eff" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+  <!-- Score text -->
+  <text x="256" y="430" font-family="monospace" font-weight="700" font-size="72" fill="#f0f2f8" text-anchor="middle">MIX</text>
+</svg>

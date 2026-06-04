@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate PWA Icons</title></head>
+<body>
+<p>Génération des icônes PWA — les téléchargements démarrent automatiquement.</p>
+<canvas id="c"></canvas>
+<script>
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f1117"/>
+  <circle cx="256" cy="230" r="148" fill="none" stroke="#e8547a" stroke-width="22"/>
+  <circle cx="256" cy="230" r="90" fill="none" stroke="#e8547a" stroke-width="10" opacity="0.5"/>
+  <circle cx="256" cy="230" r="18" fill="#e8547a"/>
+  <path d="M160 210 Q200 195 256 230 Q312 265 360 248" fill="none" stroke="#4a9eff" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+  <text x="256" y="430" font-family="monospace" font-weight="700" font-size="72" fill="#f0f2f8" text-anchor="middle">MIX</text>
+</svg>`;
+
+async function generate(size, filename) {
+  const canvas = document.getElementById('c');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const blob = new Blob([svg], {type: 'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.download = filename;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = url;
+}
+
+generate(192, 'icon-192.png');
+setTimeout(() => generate(512, 'icon-512.png'), 500);
+setTimeout(() => generate(180, 'apple-touch-icon.png'), 1000);
+</script>
+</body>
+</html>
