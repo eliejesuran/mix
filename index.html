@@ -871,7 +871,7 @@ body.light .setup-fields input { color-scheme: light; }
     <div class="stats-title">SESSION EN DIRECT</div>
     <img id="qrImg" src="" alt="QR Code" width="180" height="180" style="border-radius:8px;border:1px solid var(--border)">
     <div style="font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--green)" id="roomLabel">—</div>
-    <div style="font-size:11px;color:var(--text3)">Scannez le QR ou partagez l'URL<br>(déjà copiée dans le presse-papier)</div>
+    <button class="btn-action link" id="btnCopyUrl" onclick="copyRoomUrl()">Copier l'URL</button>
     <button class="btn-action" onclick="document.getElementById('roomModal').classList.remove('open')">Fermer</button>
   </div>
 </div>
@@ -899,12 +899,23 @@ function connectToRoom(roomId) {
   ws.onopen = () => {
     document.getElementById('liveBadge').classList.add('on');
     document.getElementById('liveBadgeLabel').textContent = roomId;
-    syncToServer(); // push our current state to the room
+    syncToServer();
   };
 
   ws.onmessage = e => {
     try {
       const msg = JSON.parse(e.data);
+      if (msg.type === 'ttl') {
+        // Avertir 30 min avant expiration
+        const msLeft = msg.expiresAt - Date.now();
+        if (msLeft > 0) {
+          setTimeout(() => {
+            if (currentRoom === roomId)
+              document.getElementById('liveBadgeLabel').textContent = roomId + ' ⚠ expire bientôt';
+          }, Math.max(0, msLeft - 30 * 60 * 1000));
+        }
+        return;
+      }
       if (msg.type !== 'sync') return;
       const snap = msg.payload;
       isRemoteUpdate = true;
@@ -922,14 +933,28 @@ function connectToRoom(roomId) {
     } catch {}
   };
 
-  ws.onclose = () => {
+  ws.onclose = e => {
     document.getElementById('liveBadge').classList.remove('on');
-    // Reconnexion automatique si la room est toujours active
+    if (e.code === 4010) {
+      // Room expirée — ne pas retenter
+      currentRoom = null;
+      alert('Session live expirée (24h). Créez une nouvelle session via "Lien session".');
+      return;
+    }
+    if (e.code === 4004) {
+      currentRoom = null; return; // Room inconnue, pas de retry
+    }
+    // Reconnexion automatique pour les autres déconnexions (réseau, redémarrage serveur)
     if (currentRoom) setTimeout(() => connectToRoom(currentRoom), 3000);
   };
 
   ws.onerror = () => ws.close();
 }
+
+// Keep-alive : ping toutes les 10 min pour éviter l'endormissement Render en pause de jeu
+setInterval(() => {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
+}, 10 * 60 * 1000);
 
 function syncToServer() {
   if (!ws || ws.readyState !== 1 || isRemoteUpdate) return;
@@ -946,6 +971,17 @@ function syncToServer() {
 
 function showRoomModal() {
   document.getElementById('roomModal').classList.add('open');
+}
+
+function copyRoomUrl() {
+  const url = location.href.split('?')[0] + '?room=' + currentRoom;
+  const btn = document.getElementById('btnCopyUrl');
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = '✓ Copié !';
+    setTimeout(() => btn.textContent = 'Copier l\'URL', 2000);
+  }).catch(() => {
+    prompt('Copiez ce lien :', url);
+  });
 }
 
 let receiver = null; // F, M, or null
@@ -1395,30 +1431,42 @@ async function copySessionLink() {
     return;
   }
 
-  // Créer une room live sur le serveur Render
+  // Créer une room live — retry jusqu'à 3 fois (cold start Render ~30s)
   const btn = document.getElementById('btnLink');
-  btn.textContent = '⏳ Connexion…';
   btn.disabled = true;
-  try {
-    const res = await fetch(`${SERVER_URL}/room`, { method: 'POST' });
-    if (!res.ok) throw new Error('server error');
-    const { roomId } = await res.json();
 
-    connectToRoom(roomId);
+  const labels = ['⏳ Réveil serveur…', '⏳ Retry 2/3…', '⏳ Retry 3/3…'];
+  let roomId = null;
 
-    const url = location.href.split('?')[0] + '?room=' + roomId;
-    navigator.clipboard.writeText(url).catch(() => {});
-
-    document.getElementById('qrImg').src =
-      `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=180x180&margin=4`;
-    document.getElementById('roomLabel').textContent = roomId;
-    showRoomModal();
-  } catch {
-    alert('Serveur indisponible (cold start Render ~30 s). Réessayez dans un moment.');
-  } finally {
-    btn.textContent = 'Lien session';
-    btn.disabled = false;
+  for (let i = 0; i < 3; i++) {
+    btn.textContent = labels[i];
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000); // timeout 20s par tentative
+      const res = await fetch(`${SERVER_URL}/room`, { method: 'POST', signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('server error');
+      ({ roomId } = await res.json());
+      break;
+    } catch {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000)); // pause avant retry
+    }
   }
+
+  btn.textContent = 'Lien session';
+  btn.disabled = false;
+
+  if (!roomId) {
+    alert('Serveur inaccessible après 3 tentatives (~60s). Vérifiez votre connexion ou réessayez.');
+    return;
+  }
+
+  connectToRoom(roomId);
+  const url = location.href.split('?')[0] + '?room=' + roomId;
+  document.getElementById('qrImg').src =
+    `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=180x180&margin=4`;
+  document.getElementById('roomLabel').textContent = roomId;
+  showRoomModal();
 }
 
 function loadFromURL() {
@@ -1457,12 +1505,20 @@ function toggleTheme() {
   document.getElementById('btnTheme').textContent = isLight ? '🌙' : '☀';
 }
 
+function applyTheme(isLight) {
+  document.body.classList.toggle('light', isLight);
+  document.getElementById('btnTheme').textContent = isLight ? '🌙' : '☀';
+}
+
 // Init
 document.getElementById('matchDate').value = new Date().toISOString().slice(0,10);
-if (localStorage.getItem('ult_theme') === 'light') {
-  document.body.classList.add('light');
-  document.getElementById('btnTheme').textContent = '🌙';
-}
+const _savedTheme = localStorage.getItem('ult_theme');
+const _systemLight = window.matchMedia('(prefers-color-scheme: light)');
+applyTheme(_savedTheme ? _savedTheme === 'light' : _systemLight.matches);
+// Suivre les changements système si aucune préférence manuelle
+_systemLight.addEventListener('change', e => {
+  if (!localStorage.getItem('ult_theme')) applyTheme(e.matches);
+});
 requestWakeLock();
 const _roomParam = new URLSearchParams(location.search).get('room');
 if (_roomParam && SERVER_URL) {
