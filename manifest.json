@@ -2,7 +2,7 @@
   "name": "ULT.MIX — Score & Mixité",
   "short_name": "ULT.MIX",
   "description": "Suivi score et statistiques de mixité pour l'ultimate frisbee mixte",
-  "start_url": "/",
+  "start_url": "/mix/",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#e8547a",
