@@ -1,0 +1,9 @@
+# Wrangler (cache local dev Cloudflare)
+.wrangler/
+
+# Node
+node_modules/
+server/node_modules/
+
+# OS
+.DS_Store

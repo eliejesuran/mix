@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Python static server",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "/Users/eliejesuran/Documents/CODE/mix"],
+      "port": 8080
+    },
+    {
+      "name": "npx serve",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "/Users/eliejesuran/Documents/CODE/mix", "-p", "3000", "-n"],
+      "port": 3000
+    },
+    {
+      "name": "Cloudflare Pages (wrangler)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "pages", "dev", "/Users/eliejesuran/Documents/CODE/mix", "--port", "8788"],
+      "port": 8788
+    }
+  ]
+}

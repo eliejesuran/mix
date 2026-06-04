@@ -3,17 +3,23 @@ const http = require('http');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3001;
+const ROOM_TTL = 24 * 3600 * 1000; // 24h strictes
 
-// rooms: Map<id, { clients: Set<ws>, snapshot: object|null, at: number }>
+// rooms: Map<id, { clients: Set<ws>, snapshot: object|null, createdAt: number, at: number }>
 const rooms = new Map();
 
 function genId() { return crypto.randomBytes(3).toString('hex'); } // 6-char hex
 
-// Purge empty rooms older than 24h
+function isExpired(room) { return Date.now() - room.createdAt > ROOM_TTL; }
+
+// Purge toutes les rooms expirées toutes les heures, ferme les connexions actives
 setInterval(() => {
-  const cutoff = Date.now() - 86400000;
-  for (const [id, r] of rooms)
-    if (!r.clients.size && r.at < cutoff) rooms.delete(id);
+  for (const [id, r] of rooms) {
+    if (isExpired(r)) {
+      for (const c of r.clients) c.close(4010, 'Room expired');
+      rooms.delete(id);
+    }
+  }
 }, 3600000);
 
 const server = http.createServer((req, res) => {
@@ -23,19 +29,18 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Health check (also prevents Render free tier cold start if pinged)
   if (req.method === 'GET' && req.url === '/ping') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('pong');
     return;
   }
 
-  // Create room
   if (req.method === 'POST' && req.url === '/room') {
     const id = genId();
-    rooms.set(id, { clients: new Set(), snapshot: null, at: Date.now() });
+    const createdAt = Date.now();
+    rooms.set(id, { clients: new Set(), snapshot: null, createdAt, at: createdAt });
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ roomId: id }));
+    res.end(JSON.stringify({ roomId: id, expiresAt: createdAt + ROOM_TTL }));
     return;
   }
 
@@ -46,26 +51,40 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
   const roomId = new URL(req.url, 'http://x').searchParams.get('room');
+
   if (!roomId || !rooms.has(roomId)) {
-    ws.close(4004, 'Room not found');
-    return;
+    ws.close(4004, 'Room not found'); return;
   }
 
   const room = rooms.get(roomId);
+
+  // Refuser la connexion si la room est expirée
+  if (isExpired(room)) {
+    ws.close(4010, 'Room expired');
+    rooms.delete(roomId);
+    return;
+  }
+
   room.clients.add(ws);
 
-  // Send last known snapshot to newcomer
+  // Envoyer le dernier snapshot au nouvel arrivant
   if (room.snapshot) {
     ws.send(JSON.stringify({ type: 'sync', payload: room.snapshot }));
   }
 
+  // Envoyer le TTL restant pour que le client puisse avertir l'utilisateur
+  ws.send(JSON.stringify({
+    type: 'ttl',
+    expiresAt: room.createdAt + ROOM_TTL
+  }));
+
   ws.on('message', raw => {
     try {
       const msg = JSON.parse(raw);
+      if (msg.type === 'ping') return; // keep-alive, rien à faire
       if (msg.type !== 'sync') return;
       room.snapshot = msg.payload;
       room.at = Date.now();
-      // Broadcast to all OTHER clients in room
       for (const c of room.clients)
         if (c !== ws && c.readyState === 1)
           c.send(JSON.stringify({ type: 'sync', payload: room.snapshot }));
