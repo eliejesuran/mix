@@ -84,6 +84,9 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | ~~R4~~ | Refresh live propre — `connectToRoom(_, asCreator)` + garde `awaitingInitialSync` : le rejoignant n'écrase plus la partie |
 | ~~R5~~ | File d'événements `enqueueAction()` — clics sérialisés, erreur d'une action isolée (try/catch) |
 | ~~U5~~ | Scan QR via jsQR (CDN jsDelivr) — `startQRScan/stopQRScan/onQRDecoded`, rejoint via `?room=` |
+| ~~R6~~ | Activation robuste boutons jeu — délégation `pointerup` (primaire) + `click` (repli clavier), dédup par `_tapTs` ; tap comptée même si le click est droppé |
+| ~~B6~~ | Nom d'équipe — `commitFields()` sur `onchange`/`onblur` : refresh label + `saveSession` + `syncToServer` |
+| ~~U6~~ | Zoom double-tap supprimé — `button { touch-action: manipulation }` (pinch-zoom conservé) |
 
 ### Robustesse ouverts
 | ID | Bug |
@@ -91,14 +94,11 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | R1 | `saveSession` : pas de try/catch sur `QuotaExceededError` |
 | R2 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
 | R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
-| R6 | Améliorer encore l'assurance de la non perte de taps. |
 
 ### Bugs
 | ID | Bug |
 |---|---|
-| B6 | refresh du nom d'équipe doit se faire au moins à la sortie du cadre|
-| B7 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
-| R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
+| B7 | Guard CDN xlsx : export cassé sans alert si xlsx indispo (= R2) |
 
 ### UX ouverts
 | ID | Amélioration |
@@ -107,7 +107,6 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | U2 | Tooltip sur bouton Gender F présélectionné |
 | U3 | Haptic (`navigator.vibrate`) sur point marqué mobile |
 | U4 | Multi-match : export/import session JSON |
-| U6 | empecher le zoom lors de plusieurs taps rapides. |
 
 ### Infra ouverts
 | ID | Amélioration |

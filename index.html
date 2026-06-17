@@ -47,6 +47,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* U6 — supprime le zoom double-tap sur les contrôles (pinch-zoom conservé ailleurs) */
+button { touch-action: manipulation; }
+
 body {
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
@@ -749,9 +752,9 @@ body.light .setup-fields input { color-scheme: light; }
     <button class="btn-theme" onclick="toggleTheme()" id="btnTheme" title="Thème clair/sombre">☀</button>
   </div>
   <div class="setup-fields">
-    <input id="nameA" value="Équipe A" placeholder="Équipe A" oninput="updateNames()">
-    <input id="nameB" value="Équipe B" placeholder="Équipe B" oninput="updateNames()">
-    <input id="matchDate" type="date">
+    <input id="nameA" value="Équipe A" placeholder="Équipe A" oninput="updateNames()" onchange="commitFields()" onblur="commitFields()">
+    <input id="nameB" value="Équipe B" placeholder="Équipe B" oninput="updateNames()" onchange="commitFields()" onblur="commitFields()">
+    <input id="matchDate" type="date" onchange="commitFields()">
   </div>
 </div>
 
@@ -760,8 +763,8 @@ body.light .setup-fields input { color-scheme: light; }
     <div class="team-name-lbl" id="lblA">ÉQUIPE A</div>
     <div class="score-big" id="scoreA">0</div>
     <div class="score-btns">
-      <button class="btn-score add" onclick="addPoint('A')">+1 point</button>
-      <button class="btn-score sub" onclick="removePoint('A')">−1</button>
+      <button class="btn-score add" data-act="addPoint" data-arg="A">+1 point</button>
+      <button class="btn-score sub" data-act="removePoint" data-arg="A">−1</button>
     </div>
   </div>
   <div class="vs-col">
@@ -771,8 +774,8 @@ body.light .setup-fields input { color-scheme: light; }
     <div class="team-name-lbl" id="lblB">ÉQUIPE B</div>
     <div class="score-big" id="scoreB">0</div>
     <div class="score-btns">
-      <button class="btn-score add" onclick="addPoint('B')">+1 point</button>
-      <button class="btn-score sub" onclick="removePoint('B')">−1</button>
+      <button class="btn-score add" data-act="addPoint" data-arg="B">+1 point</button>
+      <button class="btn-score sub" data-act="removePoint" data-arg="B">−1</button>
     </div>
   </div>
 </div>
@@ -797,7 +800,7 @@ body.light .setup-fields input { color-scheme: light; }
 
     <div id="pane-passes" class="pane active">
       <div class="pass-grid-2">
-        <button class="pass-btn2 pf" onclick="passBall('F')">
+        <button class="pass-btn2 pf" data-act="passBall" data-arg="F">
           <div class="pass-arrow2" id="passLabelF">F</div>
           <div class="pass-sub" id="passSubF">Qui a le disque ?</div>
           <div class="pass-counts">
@@ -805,7 +808,7 @@ body.light .setup-fields input { color-scheme: light; }
             <span class="pass-cnt-total" id="tot-toF">(0)</span>
           </div>
         </button>
-        <button class="pass-btn2 pm" onclick="passBall('M')">
+        <button class="pass-btn2 pm" data-act="passBall" data-arg="M">
           <div class="pass-arrow2" id="passLabelM">G</div>
           <div class="pass-sub" id="passSubM">Qui a le disque ?</div>
           <div class="pass-counts">
@@ -818,27 +821,27 @@ body.light .setup-fields input { color-scheme: light; }
 
     <div id="pane-errors" class="pane">
       <div class="err-grid">
-        <button class="err-btn err-f" onclick="addError('dropF')">
+        <button class="err-btn err-f" data-act="addError" data-arg="dropF">
           <div class="err-label">Drop F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-dropF">0</span><span class="err-cnt-total" id="tot-dropF">(0)</span></div>
         </button>
-        <button class="err-btn err-f" onclick="addError('incF')">
+        <button class="err-btn err-f" data-act="addError" data-arg="incF">
           <div class="err-label">Incompl. F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-incF">0</span><span class="err-cnt-total" id="tot-incF">(0)</span></div>
         </button>
-        <button class="err-btn err-f" onclick="addError('stallF')">
+        <button class="err-btn err-f" data-act="addError" data-arg="stallF">
           <div class="err-label">Stall F</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-stallF">0</span><span class="err-cnt-total" id="tot-stallF">(0)</span></div>
         </button>
-        <button class="err-btn err-m" onclick="addError('dropM')">
+        <button class="err-btn err-m" data-act="addError" data-arg="dropM">
           <div class="err-label">Drop M</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-dropM">0</span><span class="err-cnt-total" id="tot-dropM">(0)</span></div>
         </button>
-        <button class="err-btn err-m" onclick="addError('incM')">
+        <button class="err-btn err-m" data-act="addError" data-arg="incM">
           <div class="err-label">Incompl. M</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-incM">0</span><span class="err-cnt-total" id="tot-incM">(0)</span></div>
         </button>
-        <button class="err-btn err-m" onclick="addError('stallM')">
+        <button class="err-btn err-m" data-act="addError" data-arg="stallM">
           <div class="err-label">Stall M</div>
           <div class="err-counts"><span class="err-cnt-pt" id="pt-stallM">0</span><span class="err-cnt-total" id="tot-stallM">(0)</span></div>
         </button>
@@ -850,7 +853,7 @@ body.light .setup-fields input { color-scheme: light; }
       <button class="btn-action undo" id="btnUndo" onclick="undo()" disabled title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
       <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button> 
       <button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>
-      <button class="btn-action link" id="btnScan" onclick="startQRScan()" style="display:inline-flex;align-items:center;gap:7px">
+      <button class="btn-action link" id="btnScan" onclick="startQRScan()" style="display:inline-flex;align-items:center;gap:0px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
           <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
@@ -1133,6 +1136,28 @@ function enqueueAction(fn) {
   }
 }
 
+// R6 — activation robuste des boutons de jeu : pointerup (fiable même en taps rapides,
+// déclenche dès le relâchement) est primaire ; click sert de repli (clavier).
+// Dédup par élément (_tapTs) pour ne jamais double-compter le click synthétique qui suit.
+const TAP_ACTIONS = { addPoint, removePoint, passBall, addError };
+function handleTap(el, viaPointer) {
+  const fn = TAP_ACTIONS[el.dataset.act];
+  if (!fn) return;
+  const now = Date.now();
+  if (viaPointer) el._tapTs = now;
+  else if (el._tapTs && now - el._tapTs < 700) return; // click suivant un pointerup déjà traité
+  fn(el.dataset.arg);
+}
+document.addEventListener('pointerup', e => {
+  if (e.button > 0) return; // ignore clic droit/milieu
+  const el = e.target.closest('[data-act]');
+  if (el) handleTap(el, true);
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (el) handleTap(el, false);
+});
+
 function pushUndo() {
   undoStack.push({
     state: JSON.parse(JSON.stringify(state)),
@@ -1182,6 +1207,13 @@ function updateNames() {
   const b = document.getElementById('nameB').value || 'Équipe B';
   document.getElementById('lblA').textContent = a.toUpperCase();
   document.getElementById('lblB').textContent = b.toUpperCase();
+}
+
+// B6 — à la sortie du champ (blur/change) : rafraîchit labels, persiste et propage en live
+function commitFields() {
+  updateNames();
+  saveSession();
+  syncToServer();
 }
 
 function flashScore(id) {
