@@ -86,12 +86,14 @@ Types de passes : `FF` `MM` `FM` `MF` — Erreurs : `dropF` `dropM` `incF` `incM
 - **localStorage quota** : `setItem` peut lever `QuotaExceededError` — pas de try/catch dans `saveSession`
 - **Guard CDN xlsx** : si cdnjs indisponible, export silencieusement cassé — ajouter `if (typeof XLSX === 'undefined') { alert(...); return; }`
 - **`forceLine` null** : remplacer toggle par set explicite (`lineOverride = lineOverride === g ? 'F' : g`)
+- **update au partage de connexion** : pas de refresh parfait à la connexion ou à l'action d'un des partage de connexion
 
 ### UX
 - **Premier clic du point** : actuellement le 1er clic initialise le disque sans compter de passe — envisager une indication visuelle claire ("Qui commence ?") tant que receiver=null
 - **Bouton Gender F présélectionné** : cohérent avec ABBA par défaut, mais peu évident — tooltip ou label explicatif
 - **Score flash** : l'animation score est bonne, envisager vibration haptic (`navigator.vibrate`) sur mobile lors d'un point
 - **Multi-match** : bouton pour exporter/importer la session JSON et reprendre sur un autre appareil
+- **scan QR** : possibilité de scanner un QR code pour switcher/ou simplement se connecter à une sessioin
 
 ### Infra
 - **Render cold start** : retry 3× côté front, mais 20s/tentative peut frustrater — envisager un keep-alive externe (ex: UptimeRobot ping `/ping` toutes les 14 min)
@@ -102,3 +104,4 @@ Types de passes : `FF` `MM` `FM` `MF` — Erreurs : `dropF` `dropM` `incF` `incM
 ## TODO
 
 - Multi-match : bouton copier/envoyer session, tester mobile terrain
+- Scan QR
