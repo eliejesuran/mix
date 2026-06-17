@@ -639,6 +639,8 @@ body.light .setup-fields input { color-scheme: light; }
   /* Actions bar */
   .actions-bar { padding: 12px 14px; }
   .btn-action { flex: 1; text-align: center; }
+  /* U7 — bouton scan (icône seule) compact, ne pas étirer sur toute la largeur */
+  #btnScan { flex: 0 0 auto; justify-content: center; }
 
   /* Stats panel */
   .stats-panel { padding: 14px; }
@@ -1248,6 +1250,7 @@ function _addPoint(team) {
   recordPoint(team);
   state['score' + team]++;
   flashScore('score' + team);
+  if (navigator.vibrate) navigator.vibrate(30); // U3 — retour haptique mobile sur point marqué
   // reset per-point counters
   Object.keys(state.pt).forEach(k => state.pt[k] = 0);
   state.lastPass = null;
@@ -1311,9 +1314,17 @@ function saveSession() {
     matchDate: document.getElementById('matchDate').value,
     at: new Date().toISOString()
   };
-  localStorage.setItem('ult_mix_score', JSON.stringify(snap));
   const dot = document.getElementById('saveDot');
   const lbl = document.getElementById('saveLabel');
+  try {
+    localStorage.setItem('ult_mix_score', JSON.stringify(snap));
+  } catch (e) {
+    // R1 — quota localStorage dépassé (ou stockage indisponible) : ne pas crasher
+    console.warn('saveSession: stockage indisponible', e);
+    dot.className = 'save-dot';
+    lbl.textContent = 'Sauvegarde impossible';
+    return;
+  }
   dot.className = 'save-dot ok';
   lbl.textContent = 'Sauvegardé';
 }
@@ -1327,6 +1338,8 @@ function applySnap(snap) {
   state.tot = { ...DEFAULT_COUNTERS, ...snap.state.tot };
   state.pointLog  = snap.state.pointLog  || [];
   state.actionLog = snap.state.actionLog || [];
+  // R3 — lineOverride toujours 'F' ou 'M' (jamais null/corrompu → ligne ABBA non définie)
+  if (state.lineOverride !== 'F' && state.lineOverride !== 'M') state.lineOverride = 'F';
   receiver = snap.receiver ?? null;
   return true;
 }
@@ -1520,6 +1533,11 @@ function resetAll() {
 }
 
 function exportXLSX() {
+  // R2/B7 — garde CDN : si xlsx n'a pas pu être chargé, prévenir au lieu d'échouer en silence
+  if (typeof XLSX === 'undefined') {
+    alert("Export Excel indisponible : la librairie n'a pas pu être chargée (vérifiez votre connexion, puis rechargez la page).");
+    return;
+  }
   const teamA = document.getElementById('nameA').value || 'Équipe A';
   const teamB = document.getElementById('nameB').value || 'Équipe B';
   const date = document.getElementById('matchDate').value || new Date().toISOString().slice(0,10);

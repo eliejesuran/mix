@@ -87,25 +87,22 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | ~~R6~~ | Activation robuste boutons jeu — délégation `pointerup` (primaire) + `click` (repli clavier), dédup par `_tapTs` ; tap comptée même si le click est droppé |
 | ~~B6~~ | Nom d'équipe — `commitFields()` sur `onchange`/`onblur` : refresh label + `saveSession` + `syncToServer` |
 | ~~U6~~ | Zoom double-tap supprimé — `button { touch-action: manipulation }` (pinch-zoom conservé) |
+| ~~R1~~ | `saveSession` — try/catch `QuotaExceededError` : pas de crash, indicateur « Sauvegarde impossible » |
+| ~~R2~~ (=B7) | Garde CDN xlsx — `if (typeof XLSX === 'undefined')` → alert + return dans `exportXLSX` |
+| ~~R3~~ | `forceLine` set explicite (déjà en place) + normalisation `applySnap` : `lineOverride` ∈ {F,M}, jamais null |
+| ~~U3~~ | Haptic — `navigator.vibrate(30)` sur point marqué (`_addPoint`) |
+| ~~U7~~ | Bouton scan compact en mobile — `#btnScan { flex: 0 0 auto }` (icône seule, ne s'étire plus) |
 
 ### Robustesse ouverts
 | ID | Bug |
 |---|---|
-| R1 | `saveSession` : pas de try/catch sur `QuotaExceededError` |
-| R2 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
-| R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
-
-### Bugs
-| ID | Bug |
-|---|---|
-| B7 | Guard CDN xlsx : export cassé sans alert si xlsx indispo (= R2) |
+| — | (aucun ouvert) |
 
 ### UX ouverts
 | ID | Amélioration |
 |---|---|
 | U1 | Indication visuelle "Qui commence ?" tant que receiver=null |
 | U2 | Tooltip sur bouton Gender F présélectionné |
-| U3 | Haptic (`navigator.vibrate`) sur point marqué mobile |
 | U4 | Multi-match : export/import session JSON |
 
 ### Infra ouverts
