@@ -1,107 +1,108 @@
 # ULT.MIX
 
-Suivi score + mixité ultimate frisbee mixte. `index.html` unique — HTML/CSS/JS vanilla, aucun bundler.
-Dépendances CDN : xlsx.full.min.js (export Excel), api.qrserver.com (QR code).
-Déployé sur GitHub Pages (`main`) et Infomaniak (via GitHub Actions FTP). UI en français.
+Score + mixité ultimate frisbee mixte. `index.html` unique — HTML/CSS/JS vanilla, aucun bundler.
+CDN : xlsx.full.min.js, api.qrserver.com. Déployé GitHub Pages + Infomaniak (GH Actions FTP). UI FR.
+
+## Directives Claude
+
+- **Vérifier le code deux fois** avant de proposer ou appliquer un changement.
+- **Valider par batterie de tests** : après chaque modification, tester les cas nominaux, edge cases et régressions.
+- **Commits sans Co-authored-by** — jamais de mention Claude/Anthropic dans les commits.
+- **Token-efficient** : réponses courtes, pas de récapitulatif inutile, pas de commentaires évidents.
 
 ## State
 
 ```js
 const state = {
   scoreA, scoreB,
-  lineOverride,   // 'F'|'M' — décalage ABBA (offset 0 ou 2)
+  lineOverride,   // 'F'|'M' — offset ABBA (0 ou 2)
   pt:  { FF, MM, FM, MF, dropF, dropM, incF, incM, stallF, stallM }, // point en cours
   tot: { FF, MM, FM, MF, dropF, dropM, incF, incM, stallF, stallM }, // cumulatif
   lastPass, pointLog, actionLog
 }
-let receiver = null; // 'F'|'M'|null — qui a le disque actuellement, hors state
+let receiver = null; // 'F'|'M'|null — hors state
 ```
 
-`state` est le seul objet mutable. Toute action appelle `render()` en fin. `render()` est idempotent.
+`state` = seul objet mutable. Toute action → `render()` en fin. `render()` idempotent.
 
-## Invariants critiques
+## Invariants
 
-**ABBA** : `ABBA_SEQ[( totalPoints + (lineOverride==='M' ? 2 : 0) ) % 4]` → `['F','M','M','F']`
+**ABBA** : `ABBA_SEQ[(totalPoints + (lineOverride==='M' ? 2 : 0)) % 4]` → `['F','M','M','F']`
 
-**Passes** : 2 boutons `→ F` / `→ M`. Premier clic du point (receiver=null) = initialise qui a le disque (pas de passe comptée). Clics suivants = `passBall(dest)` déduit le type `receiver+dest` (`FF`|`FM`|`MF`|`MM`), incrémente `pt`+`tot`, met à jour `receiver=dest`.
+**Passes** : 1er clic (receiver=null) = init disque (pas de passe). Suivants = `passBall(dest)` → déduit `receiver+dest`, incrémente `pt`+`tot`, `receiver=dest`.
 
-**Undo** : `pushUndo()` avant toute mutation de `state` (max 50 snapshots, Ctrl+Z).
+**Undo** : `pushUndo()` avant toute mutation (max 50, Ctrl+Z).
 
-**Save** : `saveSession()` auto sur chaque point marqué. Passes/erreurs → indicateur "non sauvegardé".
+**Save** : auto sur point marqué. Passes/erreurs → indicateur "non sauvegardé".
 
 ## Fonctions clés
 
-| Fonction | Rôle |
+| Fn | Rôle |
 |---|---|
-| `passBall(dest)` | 1er clic: init receiver. Suivants: déduit type, incrémente pt+tot |
+| `passBall(dest)` | 1er: init receiver. Suivants: type+incr pt+tot |
 | `addPoint(team)` | snapshot pointLog, reset pt, auto-save |
-| `removePoint(team)` | pop pointLog, décrémente score (pas de restore pt — préférer Ctrl+Z) |
-| `addError(type)` | incrémente pt+tot, reset receiver à null |
-| `forceLine(g)` | toggle lineOverride F/M (null si toggle off → bug visuel, voir ci-dessous) |
+| `removePoint(team)` | pop pointLog, décrémente score (préférer Ctrl+Z) |
+| `addError(type)` | incrémente pt+tot, receiver=null |
+| `forceLine(g)` | toggle lineOverride F/M |
 | `copySessionLink()` | crée room Render → QR + URL |
-| `loadFromURL()` | décode `?s=` au chargement (fallback sans SERVER_URL) |
+| `loadFromURL()` | décode `?s=` au chargement |
 | `saveSession()` / `loadSession()` | localStorage `ult_mix_score` |
 | `exportXLSX()` | 3 feuilles : Résumé / Points / Journal |
 
 ## Live sync (Render)
 
-`server/server.js` — Node.js WebSocket relay. `SERVER_URL` à configurer dans `index.html`.
+`server/server.js` — WebSocket relay. `SERVER_URL` dans `index.html`.
+- `POST /room` → room 6-char, expire `createdAt + 24h`
+- `WS /ws?room=id` → last-write-wins, ping absorbé, `4010`=expiré, `4004`=inconnu
+- `syncToServer()` en fin de `render()` (bloqué par `isRemoteUpdate` + `awaitingInitialSync`), ping/10min
+- `receiver` inclus dans payload sync
+- `connectToRoom(roomId, asCreator)` : créateur pousse son état ; rejoignant attend le snapshot serveur (fallback push 1.5s) — évite l'écrasement par état vide
 
-```js
-const SERVER_URL = 'https://ultmix-relay.onrender.com'; // à remplacer après déploiement
-```
+Déploiement Render : Root Dir `server` → `node server.js`
 
-- `POST /room` → crée room (6-char ID), expire strictement à `createdAt + 24h`
-- `WS /ws?room=id` → relay last-write-wins, `type: 'ping'` absorbé, `4010` = expiré, `4004` = inconnu
-- Front : `syncToServer()` en fin de `render()` (bloqué par `isRemoteUpdate`), keep-alive ping/10min
-- `receiver` inclus dans le payload sync
+## Déploiement Infomaniak
 
-Déploiement Render : New Web Service → Root Directory: `server` → Start: `node server.js`
+`.github/workflows/deploy-infomaniak.yml` — push `main` si `index.html` modifié.
+Secrets : `FTP_HOST`, `FTP_USER`, `FTP_PASSWORD`, `FTP_PATH`.
 
-## Déploiement auto Infomaniak
+## Nommage
 
-`.github/workflows/deploy-infomaniak.yml` — déclenché sur push `main` si `index.html` modifié.
-Secrets GitHub requis : `FTP_HOST`, `FTP_USER`, `FTP_PASSWORD`, `FTP_PATH` (dossier, ex: `/web/`).
+`pt-toF/toM` passes agrégées (FF+MF / FM+MM) · `pt-dropF` erreurs · `st-` stats globales · `bf-/bv-` barres
+Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF` `stallM`
 
-## Conventions de nommage
+## Bugs & améliorations (index)
 
-`pt-toF` / `pt-toM` — compteurs passes vers F/G sur le bouton (agrégés : FF+MF / FM+MM)  
-`pt-dropF` etc. — IDs erreurs  
-`st-` — stats globales (`st-total`, `st-pct`…)  
-`bf-` / `bv-` — barres progression (fill / value)  
-Types de passes : `FF` `MM` `FM` `MF` — Erreurs : `dropF` `dropM` `incF` `incM` `stallF` `stallM`
+### Corrigés
+| ID | Fix |
+|---|---|
+| ~~B0~~ | `forceLine` → jamais null, retombe sur `'F'` |
+| ~~B1~~ | `recordPoint.errors` — champ mort supprimé |
+| ~~B2~~ | `removePoint` — soustrait passes du point annulé de `tot` via `removed.passes` |
+| ~~B3~~ | `loadFromURL` jamais appelée — init `if (!loadFromURL()) loadSession()` |
+| ~~B4~~ | `receiver` non propagé en live — inclus dans payload sync |
+| ~~B5~~ | Versioning state — `STATE_VERSION=1` + `applySnap()` normalise avec `DEFAULT_COUNTERS` |
+| ~~R4~~ | Refresh live propre — `connectToRoom(_, asCreator)` + garde `awaitingInitialSync` : le rejoignant n'écrase plus la partie |
+| ~~R5~~ | File d'événements `enqueueAction()` — clics sérialisés, erreur d'une action isolée (try/catch) |
+| ~~U5~~ | Scan QR via jsQR (CDN jsDelivr) — `startQRScan/stopQRScan/onQRDecoded`, rejoint via `?room=` |
 
-## Bugs corrigés (cette session)
+### Robustesse ouverts
+| ID | Bug |
+|---|---|
+| R1 | `saveSession` : pas de try/catch sur `QuotaExceededError` |
+| R2 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
+| R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
 
-- ~~`forceLine` → null~~ : toggle retombe sur `'F'` (jamais `null`)
-- ~~`recordPoint.errors`~~ : champ mort supprimé
-- ~~`removePoint`~~ : soustrait maintenant les passes du point annulé de `tot` via `removed.passes`
-- ~~`loadFromURL` jamais appelée~~ : init utilise `if (!loadFromURL()) loadSession()`
-- ~~`receiver` non propagé en live~~ : inclus dans payload `syncToServer`
+### UX ouverts
+| ID | Amélioration |
+|---|---|
+| U1 | Indication visuelle "Qui commence ?" tant que receiver=null |
+| U2 | Tooltip sur bouton Gender F présélectionné |
+| U3 | Haptic (`navigator.vibrate`) sur point marqué mobile |
+| U4 | Multi-match : export/import session JSON |
 
-## Idées d'amélioration
-
-### Bugs / robustesse
-- ~~**Versioning state**~~ : `STATE_VERSION=1` + `applySnap()` normalise `pt`/`tot` avec `DEFAULT_COUNTERS` spread
-- **localStorage quota** : `setItem` peut lever `QuotaExceededError` — pas de try/catch dans `saveSession`
-- **Guard CDN xlsx** : si cdnjs indisponible, export silencieusement cassé — ajouter `if (typeof XLSX === 'undefined') { alert(...); return; }`
-- **`forceLine` null** : remplacer toggle par set explicite (`lineOverride = lineOverride === g ? 'F' : g`)
-- **update au partage de connexion** : pas de refresh parfait à la connexion ou à l'action d'un des partage de connexion
-
-### UX
-- **Premier clic du point** : actuellement le 1er clic initialise le disque sans compter de passe — envisager une indication visuelle claire ("Qui commence ?") tant que receiver=null
-- **Bouton Gender F présélectionné** : cohérent avec ABBA par défaut, mais peu évident — tooltip ou label explicatif
-- **Score flash** : l'animation score est bonne, envisager vibration haptic (`navigator.vibrate`) sur mobile lors d'un point
-- **Multi-match** : bouton pour exporter/importer la session JSON et reprendre sur un autre appareil
-- **scan QR** : possibilité de scanner un QR code pour switcher/ou simplement se connecter à une sessioin
-
-### Infra
-- **Render cold start** : retry 3× côté front, mais 20s/tentative peut frustrater — envisager un keep-alive externe (ex: UptimeRobot ping `/ping` toutes les 14 min)
-- **`copySessionLink` sans SERVER_URL** : fallback base64 inclut `actionLog` → URL très longue. Exclure `actionLog` du payload `?s=`
-- **Room expiry** : purge toutes les heures → une room peut vivre jusqu'à ~25h. Acceptable
-- **Pas de persistance room** : si le serveur Render redémarre (déploiement, crash), toutes les rooms en mémoire sont perdues — envisager Redis ou KV Cloudflare pour les sessions actives
-
-## TODO
-
-- Multi-match : bouton copier/envoyer session, tester mobile terrain
-- Scan QR
+### Infra ouverts
+| ID | Amélioration |
+|---|---|
+| I1 | Render cold start : keep-alive externe (UptimeRobot `/ping` /14min) |
+| I2 | `copySessionLink` fallback : exclure `actionLog` du `?s=` (URL trop longue) |
+| I3 | Persistance room : Redis/KV Cloudflare si Render redémarre |

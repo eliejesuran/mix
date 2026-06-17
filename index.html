@@ -20,6 +20,7 @@
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
@@ -849,6 +850,15 @@ body.light .setup-fields input { color-scheme: light; }
       <button class="btn-action undo" id="btnUndo" onclick="undo()" disabled title="Annuler la dernière action (Ctrl+Z)">↩ Annuler</button>
       <button class="btn-action export" onclick="exportXLSX()">Exporter XLSX</button> 
       <button class="btn-action link" id="btnLink" onclick="copySessionLink()">Lien session</button>
+      <button class="btn-action link" id="btnScan" onclick="startQRScan()" style="display:inline-flex;align-items:center;gap:7px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+          <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+          <rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect>
+          <rect x="7" y="14" width="3" height="3"></rect><rect x="14" y="14" width="3" height="3"></rect>
+        </svg>
+        Scanner QR
+      </button>
       <div class="live-badge" id="liveBadge" onclick="showRoomModal()" title="Session live — cliquez pour revoir le QR">
         <span class="live-dot"></span>
         <span id="liveBadgeLabel">—</span>
@@ -908,6 +918,15 @@ body.light .setup-fields input { color-scheme: light; }
   </div>
 </div>
 
+<div class="modal-overlay" id="scanModal" onclick="if(event.target===this)stopQRScan()">
+  <div class="modal-box">
+    <div class="stats-title">SCANNER UN QR</div>
+    <video id="scanVideo" playsinline width="240" height="240" style="border-radius:8px;border:1px solid var(--border);background:#000;object-fit:cover"></video>
+    <div id="scanHint" style="font-size:12px;color:var(--text2)">Visez le QR code de la session…</div>
+    <button class="btn-action" onclick="stopQRScan()">Annuler</button>
+  </div>
+</div>
+
 <script>
 // ── ABBA sequence: determines line from total points played
 // ABBA: 0→A, 1→B, 2→B, 3→A, 4→A, 5→B, 6→B... repeating ABBA
@@ -923,8 +942,11 @@ const SERVER_URL = 'https://mix-5mf7.onrender.com';
 let ws = null;
 let currentRoom = null;
 let isRemoteUpdate = false; // évite la boucle sync → render → sync
+let awaitingInitialSync = false; // R4 : un rejoignant attend l'état serveur avant de pousser le sien
+let initialSyncTimer = null;
 
-function connectToRoom(roomId) {
+// R4 : asCreator=true → pousse l'état local (amorce la room) ; false → attend l'état serveur
+function connectToRoom(roomId, asCreator = false) {
   if (ws) { ws.onclose = null; ws.close(); }
   currentRoom = roomId;
   const wsBase = SERVER_URL.replace(/^http/, 'ws');
@@ -933,7 +955,17 @@ function connectToRoom(roomId) {
   ws.onopen = () => {
     document.getElementById('liveBadge').classList.add('on');
     document.getElementById('liveBadgeLabel').textContent = roomId;
-    syncToServer();
+    if (asCreator) {
+      syncToServer(); // le créateur amorce la room avec son état courant
+    } else {
+      // Rejoignant/reconnexion : on attend le snapshot serveur pour ne pas écraser
+      // la partie en cours avec un état vide. Si rien n'arrive (room neuve), on pousse.
+      awaitingInitialSync = true;
+      clearTimeout(initialSyncTimer);
+      initialSyncTimer = setTimeout(() => {
+        if (awaitingInitialSync) { awaitingInitialSync = false; syncToServer(); }
+      }, 1500);
+    }
   };
 
   ws.onmessage = e => {
@@ -951,6 +983,9 @@ function connectToRoom(roomId) {
         return;
       }
       if (msg.type !== 'sync') return;
+      // R4 : état serveur reçu → on annule la poussée de secours
+      awaitingInitialSync = false;
+      clearTimeout(initialSyncTimer);
       const snap = msg.payload;
       isRemoteUpdate = true;
       Object.assign(state, snap.state);
@@ -992,7 +1027,7 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 function syncToServer() {
-  if (!ws || ws.readyState !== 1 || isRemoteUpdate) return;
+  if (!ws || ws.readyState !== 1 || isRemoteUpdate || awaitingInitialSync) return;
   ws.send(JSON.stringify({
     type: 'sync',
     payload: {
@@ -1020,9 +1055,84 @@ function copyRoomUrl() {
   });
 }
 
+// ── U5 — SCAN QR pour rejoindre une session ──
+let scanStream = null;
+let scanRAF = null;
+
+async function startQRScan() {
+  const video = document.getElementById('scanVideo');
+  const hint = document.getElementById('scanHint');
+  if (typeof jsQR === 'undefined') { alert('Scanner indisponible (librairie non chargée). Vérifiez votre connexion.'); return; }
+  if (!navigator.mediaDevices?.getUserMedia) { alert('Caméra non disponible sur cet appareil/navigateur.'); return; }
+  document.getElementById('scanModal').classList.add('open');
+  hint.textContent = 'Activation de la caméra…';
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    stopQRScan();
+    alert('Accès caméra refusé ou indisponible : ' + (e?.message || e));
+    return;
+  }
+  video.srcObject = scanStream;
+  await video.play().catch(() => {});
+  hint.textContent = 'Visez le QR code de la session…';
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const tick = () => {
+    if (!scanStream) return; // scan annulé
+    if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) { onQRDecoded(code.data); return; }
+    }
+    scanRAF = requestAnimationFrame(tick);
+  };
+  scanRAF = requestAnimationFrame(tick);
+}
+
+function stopQRScan() {
+  if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const video = document.getElementById('scanVideo');
+  if (video) video.srcObject = null;
+  document.getElementById('scanModal').classList.remove('open');
+}
+
+function onQRDecoded(data) {
+  // Extrait le roomId d'une URL ?room=… ou accepte un ID 6-hex brut
+  let roomId = null;
+  try { roomId = new URL(data, location.href).searchParams.get('room'); } catch {}
+  if (!roomId && /^[0-9a-f]{6}$/i.test(data.trim())) roomId = data.trim();
+  stopQRScan();
+  if (!roomId) { alert('QR non reconnu (pas une session ULT.MIX).'); return; }
+  // Recharge sur l'URL de session → réutilise le flux d'init (rejoignant, R4)
+  location.href = location.href.split('?')[0] + '?room=' + roomId;
+}
+
 let receiver = null; // F, M, or null
 const undoStack = []; // stack of {state snapshot, receiver}
 const UNDO_MAX = 50;  // max undo depth
+
+// R5 — file d'événements : chaque clic est traité dans l'ordre, jamais perdu.
+// Une erreur dans une action (ex: render) n'empêche pas les clics suivants.
+const actionQueue = [];
+let draining = false;
+function enqueueAction(fn) {
+  actionQueue.push(fn);
+  if (draining) return;
+  draining = true;
+  try {
+    while (actionQueue.length) {
+      const job = actionQueue.shift();
+      try { job(); } catch (e) { console.error('action error', e); }
+    }
+  } finally {
+    draining = false;
+  }
+}
 
 function pushUndo() {
   undoStack.push({
@@ -1101,7 +1211,8 @@ function recordPoint(team) {
   });
 }
 
-function addPoint(team) {
+function addPoint(team) { enqueueAction(() => _addPoint(team)); }
+function _addPoint(team) {
   pushUndo();
   recordPoint(team);
   state['score' + team]++;
@@ -1114,7 +1225,8 @@ function addPoint(team) {
   render();
 }
 
-function removePoint(team) {
+function removePoint(team) { enqueueAction(() => _removePoint(team)); }
+function _removePoint(team) {
   if (state['score' + team] <= 0) return;
   pushUndo();
   state['score' + team]--;
@@ -1128,7 +1240,8 @@ function removePoint(team) {
   render();
 }
 
-function passBall(dest) {
+function passBall(dest) { enqueueAction(() => _passBall(dest)); }
+function _passBall(dest) {
   pushUndo();
   if (receiver === null) {
     // Début de point : initialise qui a le disque, sans compter de passe
@@ -1148,7 +1261,8 @@ function passBall(dest) {
   render();
 }
 
-function addError(type) {
+function addError(type) { enqueueAction(() => _addError(type)); }
+function _addError(type) {
   pushUndo();
   state.pt[type]++;
   state.tot[type]++;
@@ -1199,7 +1313,8 @@ function loadSession() {
   } catch(e) { console.warn('loadSession failed', e); }
 }
 
-function undo() {
+function undo() { enqueueAction(_undo); }
+function _undo() {
   if (undoStack.length === 0) return;
   const snap = undoStack.pop();
   Object.assign(state, snap.state);
@@ -1227,7 +1342,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-function forceLine(g) {
+function forceLine(g) { enqueueAction(() => _forceLine(g)); }
+function _forceLine(g) {
   state.lineOverride = state.lineOverride === g ? 'F' : g;
   render();
 }
@@ -1470,7 +1586,7 @@ async function copySessionLink() {
   const btn = document.getElementById('btnLink');
   btn.disabled = true;
 
-  const labels = ['⏳ Réveil serveur…', '⏳ Retry 2/3…', '⏳ Retry 3/3…'];
+  const labels = ['⏳ Réveil serveur (~30s)…', '⏳ Retry 2/3…', '⏳ Retry 3/3…'];
   let roomId = null;
 
   for (let i = 0; i < 3; i++) {
@@ -1496,7 +1612,7 @@ async function copySessionLink() {
     return;
   }
 
-  connectToRoom(roomId);
+  connectToRoom(roomId, true); // créateur : amorce la room
   const url = location.href.split('?')[0] + '?room=' + roomId;
   document.getElementById('qrImg').src =
     `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=180x180&margin=4`;
@@ -1556,8 +1672,8 @@ _systemLight.addEventListener('change', e => {
 requestWakeLock();
 const _roomParam = new URLSearchParams(location.search).get('room');
 if (_roomParam && SERVER_URL) {
-  // Rejoindre une session live — l'état viendra du serveur via WS
-  connectToRoom(_roomParam);
+  // Rejoindre une session live — l'état viendra du serveur via WS (R4 : rejoignant)
+  connectToRoom(_roomParam, false);
   document.getElementById('qrImg').src =
     `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(location.href)}&size=180x180&margin=4`;
   document.getElementById('roomLabel').textContent = _roomParam;
