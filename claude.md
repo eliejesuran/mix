@@ -91,6 +91,14 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | R1 | `saveSession` : pas de try/catch sur `QuotaExceededError` |
 | R2 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
 | R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
+| R6 | Améliorer encore l'assurance de la non perte de taps. |
+
+### Bugs
+| ID | Bug |
+|---|---|
+| B6 | refresh du nom d'équipe doit se faire au moins à la sortie du cadre|
+| B7 | Guard CDN xlsx : export cassé sans alert si xlsx indispo |
+| R3 | `forceLine` : set explicite `lineOverride = lineOverride === g ? 'F' : g` |
 
 ### UX ouverts
 | ID | Amélioration |
@@ -99,6 +107,7 @@ Passes : `FF` `MM` `FM` `MF` · Erreurs : `dropF` `dropM` `incF` `incM` `stallF`
 | U2 | Tooltip sur bouton Gender F présélectionné |
 | U3 | Haptic (`navigator.vibrate`) sur point marqué mobile |
 | U4 | Multi-match : export/import session JSON |
+| U6 | empecher le zoom lors de plusieurs taps rapides. |
 
 ### Infra ouverts
 | ID | Amélioration |
